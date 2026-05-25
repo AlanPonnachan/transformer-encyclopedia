@@ -11,46 +11,38 @@
   $: DiagramComponent = diagrams[data.slug];
   $: title = data.metadata?.title ?? data.slug.toUpperCase();
 
-  let steps: { id: string, el: HTMLElement }[] =[];
+  let phases: { id: string, el: HTMLElement }[] = [];
   let currentIndex = 0;
   
-  // Reference to the scrollable text pane
   let articleSection: HTMLElement;
 
   onMount(() => {
     const stepNodes = Array.from(document.querySelectorAll('.step')) as HTMLElement[];
-    steps = stepNodes.map(el => ({ id: el.dataset.stepId || '', el }));
+    phases = stepNodes.map(el => ({ id: el.dataset.stepId || '', el }));
 
-    // Sync scrolling to the Tour Card, but ONLY inside the article pane
     const io = new IntersectionObserver(
       entries => {
         for (const e of entries) {
           if (e.isIntersecting) {
             const id = (e.target as HTMLElement).dataset.stepId || '';
             activeStep.set(id);
-            const foundIndex = steps.findIndex(s => s.id === id);
+            const foundIndex = phases.findIndex(p => p.id === id);
             if (foundIndex !== -1) currentIndex = foundIndex;
           }
         }
       },
-      { 
-        root: articleSection, // <--- THIS IS THE FIX: Only observe the bottom pane
-        threshold: 0.1, 
-        rootMargin: "-10% 0px -40% 0px" 
-      }
+      { root: articleSection, threshold: 0.1, rootMargin: "-10% 0px -40% 0px" }
     );
     
     stepNodes.forEach(s => io.observe(s));
     return () => io.disconnect();
   });
 
-  function goToStep(index: number) {
-    if (index >= 0 && index < steps.length) {
+  function goToPhase(index: number) {
+    if (index >= 0 && index < phases.length) {
       currentIndex = index;
-      const target = steps[index];
+      const target = phases[index];
       activeStep.set(target.id);
-      
-      // Smooth scroll the target into view (natively scrolls the nearest scrollable ancestor)
       target.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
@@ -69,48 +61,40 @@
         <div class="not-found">No diagram found for "{data.slug}"</div>
       {/if}
     </div>
+  </section>
 
-    <!-- The Floating Tour Card -->
-    <div class="tour-card">
-      <div class="tour-header">
-        <h3>Interactive Controls</h3>
-        <span class="badge">{data.slug.toUpperCase()}</span>
-      </div>
-
-      <div class="controls">
+  <!-- MIDDLE: HORIZONTAL CONTROL BAR -->
+  <section class="control-bar">
+    <div class="controls-left">
+      <span class="badge">{data.slug.toUpperCase()}</span>
+      <label>
+        <span>d_model: <strong>{$dModel}</strong></span>
+        <input type="range" min="128" max="1024" step="128" bind:value={$dModel} />
+      </label>
+      <label>
+        <span>heads: <strong>{$numHeads}</strong></span>
+        <input type="range" min="1" max="16" step="1" bind:value={$numHeads} />
+      </label>
+      <label>
+        <span>seq_len: <strong>{$seqLen}</strong></span>
+        <input type="range" min="3" max="12" step="1" bind:value={$seqLen} />
+      </label>
+      {#if data.slug === 'mla'}
         <label>
-          <span>d_model: <strong>{$dModel}</strong></span>
-          <input type="range" min="128" max="1024" step="128" bind:value={$dModel} />
+          <span>latent: <strong>{$latentRatio}</strong></span>
+          <input type="range" min="0.05" max="0.5" step="0.05" bind:value={$latentRatio} />
         </label>
-        <label>
-          <span>heads: <strong>{$numHeads}</strong></span>
-          <input type="range" min="1" max="16" step="1" bind:value={$numHeads} />
-        </label>
-        <label>
-          <span>seq_len: <strong>{$seqLen}</strong></span>
-          <input type="range" min="3" max="12" step="1" bind:value={$seqLen} />
-        </label>
-        {#if data.slug === 'mla'}
-          <label>
-            <span>latent ratio: <strong>{$latentRatio}</strong></span>
-            <input type="range" min="0.05" max="0.5" step="0.05" bind:value={$latentRatio} />
-          </label>
-        {/if}
+      {/if}
+    </div>
+    
+    <div class="controls-right">
+      <button disabled={currentIndex <= 0} on:click={() => goToPhase(currentIndex - 1)}>← Prev</button>
+      <div class="dots">
+        {#each phases as _, i}
+          <div class="dot" class:active={i === currentIndex}></div>
+        {/each}
       </div>
-
-      <div class="tour-nav">
-        <button disabled={currentIndex <= 0} on:click={() => goToStep(currentIndex - 1)}>
-          ← Prev
-        </button>
-        <div class="dots">
-          {#each steps as _, i}
-            <div class="dot" class:active={i === currentIndex}></div>
-          {/each}
-        </div>
-        <button disabled={currentIndex >= steps.length - 1} on:click={() => goToStep(currentIndex + 1)}>
-          Next →
-        </button>
-      </div>
+      <button disabled={currentIndex >= phases.length - 1} on:click={() => goToPhase(currentIndex + 1)}>Next →</button>
     </div>
   </section>
 
@@ -124,113 +108,32 @@
 </div>
 
 <style>
-  /* Layout Architecture: Fixed to exactly the screen height */
-  .layout { 
-    display: flex; 
-    flex-direction: column; 
-    height: calc(100vh - 52px); 
-    overflow: hidden; /* <--- Prevents the whole window from scrolling */
-    background: var(--bg); 
-  }
+  .layout { display: flex; flex-direction: column; height: calc(100vh - 52px); overflow: hidden; background: var(--bg); }
   
-  /* Canvas Area is frozen at 60vh */
-  .canvas-section {
-    position: relative;
-    width: 100%;
-    height: 60vh;
-    flex-shrink: 0;
-    background: radial-gradient(circle at center, var(--surface2) 0%, var(--bg) 100%);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden;
-    z-index: 10;
-  }
+  /* Canvas Area: 55vh to give room to the control bar */
+  .canvas-section { position: relative; width: 100%; height: 55vh; flex-shrink: 0; background: radial-gradient(circle at center, var(--surface2) 0%, var(--bg) 100%); display: flex; justify-content: center; align-items: center; overflow: hidden; z-index: 10; }
+  .diagram-wrapper { width: 100%; height: 100%; padding: 1rem; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+
+  /* Control Bar: Flattens the Tour Card */
+  .control-bar { flex: 0 0 60px; background: rgba(17, 17, 24, 0.95); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; z-index: 20; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
   
-  .diagram-wrapper {
-    width: 100%;
-    height: 100%;
-    padding: 2rem 2rem 6rem 2rem;
-    overflow: auto;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+  .controls-left { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+  .badge { background: var(--accent); color: white; font-size: 0.65rem; font-weight: 700; padding: 0.25em 0.6em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+  
+  label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+  label span { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); }
+  label strong { color: var(--highlight); display: inline-block; width: 30px; }
+  input[type="range"] { width: 100px; accent-color: var(--accent); cursor: pointer; }
 
-  .tour-card {
-    position: absolute;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    width: 340px;
-    background: rgba(17, 17, 24, 0.7);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1.5rem;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    z-index: 50;
-  }
-
-  .tour-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 0.75rem;
-  }
-
-  .tour-header h3 { margin: 0; font-size: 0.9rem; font-family: 'JetBrains Mono', monospace; color: var(--text); }
-  .badge { background: var(--accent); color: white; font-size: 0.6rem; font-weight: 700; padding: 0.2em 0.6em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
-
-  .controls { display: flex; flex-direction: column; gap: 0.75rem; }
-  .controls label { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
-  .controls span { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); min-width: 130px; }
-  .controls strong { color: var(--highlight); }
-  .controls input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
-
-  .tour-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 0.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .tour-nav button {
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 0.4rem 0.8rem;
-    border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .tour-nav button:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
-  .tour-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
-
+  .controls-right { display: flex; gap: 1rem; align-items: center; }
+  button { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; cursor: pointer; transition: all 0.2s; }
+  button:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+  button:disabled { opacity: 0.3; cursor: not-allowed; }
   .dots { display: flex; gap: 4px; }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background 0.3s; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
   .dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
-  /* Deep Dive Article: INDEPENDENTLY SCROLLING PANE */
-  .article-section { 
-    flex: 1; 
-    overflow-y: auto; /* <--- THIS IS THE FIX: Article scrolls independently */
-    padding: 3rem 2rem 5rem 2rem; 
-    display: flex; 
-    justify-content: center; 
-    background: var(--bg);
-    box-shadow: inset 0 15px 15px -15px rgba(0,0,0,0.8); /* Nice inner shadow to separate from canvas */
-  }
-  
+  .article-section { flex: 1; overflow-y: auto; padding: 2rem 2rem 5rem 2rem; display: flex; justify-content: center; background: var(--bg); }
   .prose { width: 100%; max-width: 768px; }
   .not-found { font-family: 'JetBrains Mono', monospace; color: var(--muted); }
 </style>
