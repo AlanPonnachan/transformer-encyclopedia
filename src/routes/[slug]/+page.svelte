@@ -13,7 +13,6 @@
 
   let phases: { id: string, el: HTMLElement }[] = [];
   let currentIndex = 0;
-  
   let articleSection: HTMLElement;
 
   onMount(() => {
@@ -24,116 +23,182 @@
       entries => {
         for (const e of entries) {
           if (e.isIntersecting) {
-            const id = (e.target as HTMLElement).dataset.stepId || '';
+            const target = e.target as HTMLElement;
+            const id = target.dataset.stepId || '';
             activeStep.set(id);
+            
+            // Remove active class from all, add to current
+            stepNodes.forEach(n => n.classList.remove('is-active'));
+            target.classList.add('is-active');
+
             const foundIndex = phases.findIndex(p => p.id === id);
             if (foundIndex !== -1) currentIndex = foundIndex;
           }
         }
       },
-      { root: articleSection, threshold: 0.1, rootMargin: "-10% 0px -40% 0px" }
+      { 
+        root: articleSection, 
+        threshold: 0.4, // Higher threshold so it triggers when the card is well in view
+        rootMargin: "-20% 0px -40% 0px" 
+      }
     );
     
-    stepNodes.forEach(s => io.observe(s));
+    stepNodes.forEach(s => {
+      io.observe(s);
+      // Optional: click a text card to scroll it into view
+      s.addEventListener('click', () => s.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    });
+
     return () => io.disconnect();
   });
-
-  function goToPhase(index: number) {
-    if (index >= 0 && index < phases.length) {
-      currentIndex = index;
-      const target = phases[index];
-      activeStep.set(target.id);
-      target.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }
 </script>
 
 <svelte:head><title>{title} — Transformer Encyclopedia</title></svelte:head>
 
-<div class="layout">
+<div class="apple-layout">
   
-  <!-- TOP: FROZEN INTERACTIVE CANVAS -->
-  <section class="canvas-section">
+  <!-- LEFT PANE: CONTROLS & SCROLLING TEXT -->
+  <aside class="left-pane" bind:this={articleSection}>
+    
+    <!-- Sticky Hyperparameters Header -->
+    <header class="sticky-controls">
+      <div class="controls-grid">
+        <label>
+          <span>d_model:</span><strong>{$dModel}</strong>
+          <input type="range" min="128" max="1024" step="128" bind:value={$dModel} />
+        </label>
+        <label>
+          <span>heads:</span><strong>{$numHeads}</strong>
+          <input type="range" min="1" max="16" step="1" bind:value={$numHeads} />
+        </label>
+        <label>
+          <span>seq_len:</span><strong>{$seqLen}</strong>
+          <input type="range" min="3" max="12" step="1" bind:value={$seqLen} />
+        </label>
+        {#if data.slug === 'mla'}
+          <label>
+            <span>latent:</span><strong>{$latentRatio}</strong>
+            <input type="range" min="0.05" max="0.5" step="0.05" bind:value={$latentRatio} />
+          </label>
+        {/if}
+      </div>
+    </header>
+
+    <!-- The Scrollytelling Markdown -->
+    <div class="prose-container">
+      <div class="prose apple-prose">
+        <svelte:component this={data.content}/>
+      </div>
+      <!-- Spacer to allow the last item to scroll up -->
+      <div style="height: 50vh;"></div>
+    </div>
+  </aside>
+
+  <!-- RIGHT PANE: FROZEN CANVAS -->
+  <main class="right-pane">
     <div class="diagram-wrapper">
       {#if DiagramComponent}
+        <!-- Keeping the auto-pan diagram we built -->
         <svelte:component this={DiagramComponent}/>
       {:else}
         <div class="not-found">No diagram found for "{data.slug}"</div>
       {/if}
     </div>
-  </section>
-
-  <!-- MIDDLE: HORIZONTAL CONTROL BAR -->
-  <section class="control-bar">
-    <div class="controls-left">
-      <span class="badge">{data.slug.toUpperCase()}</span>
-      <label>
-        <span>d_model: <strong>{$dModel}</strong></span>
-        <input type="range" min="128" max="1024" step="128" bind:value={$dModel} />
-      </label>
-      <label>
-        <span>heads: <strong>{$numHeads}</strong></span>
-        <input type="range" min="1" max="16" step="1" bind:value={$numHeads} />
-      </label>
-      <label>
-        <span>seq_len: <strong>{$seqLen}</strong></span>
-        <input type="range" min="3" max="12" step="1" bind:value={$seqLen} />
-      </label>
-      {#if data.slug === 'mla'}
-        <label>
-          <span>latent: <strong>{$latentRatio}</strong></span>
-          <input type="range" min="0.05" max="0.5" step="0.05" bind:value={$latentRatio} />
-        </label>
-      {/if}
-    </div>
-    
-    <div class="controls-right">
-      <button disabled={currentIndex <= 0} on:click={() => goToPhase(currentIndex - 1)}>← Prev</button>
-      <div class="dots">
-        {#each phases as _, i}
-          <div class="dot" class:active={i === currentIndex}></div>
-        {/each}
-      </div>
-      <button disabled={currentIndex >= phases.length - 1} on:click={() => goToPhase(currentIndex + 1)}>Next →</button>
-    </div>
-  </section>
-
-  <!-- BOTTOM: INDEPENDENTLY SCROLLING ARTICLE PANE -->
-  <article bind:this={articleSection} class="article-section">
-    <div class="prose">
-      <svelte:component this={data.content}/>
-    </div>
-  </article>
+  </main>
 
 </div>
 
 <style>
-  .layout { display: flex; flex-direction: column; height: calc(100vh - 52px); overflow: hidden; background: var(--bg); }
-  
-  /* Canvas Area: 55vh to give room to the control bar */
-  .canvas-section { position: relative; width: 100%; height: 55vh; flex-shrink: 0; background: radial-gradient(circle at center, var(--surface2) 0%, var(--bg) 100%); display: flex; justify-content: center; align-items: center; overflow: hidden; z-index: 10; }
-  .diagram-wrapper { width: 100%; height: 100%; padding: 1rem; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+  /* Apple-style layout architecture */
+  .apple-layout { 
+    display: flex; 
+    height: calc(100vh - 52px); 
+    overflow: hidden; 
+    background: var(--bg); 
+  }
 
-  /* Control Bar: Flattens the Tour Card */
-  .control-bar { flex: 0 0 60px; background: rgba(17, 17, 24, 0.95); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; z-index: 20; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
-  
-  .controls-left { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
-  .badge { background: var(--accent); color: white; font-size: 0.65rem; font-weight: 700; padding: 0.25em 0.6em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
-  
-  label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-  label span { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); }
-  label strong { color: var(--highlight); display: inline-block; width: 30px; }
-  input[type="range"] { width: 100px; accent-color: var(--accent); cursor: pointer; }
+  /* --- LEFT PANE --- */
+  .left-pane {
+    width: 38%; /* Takes up roughly a third of the screen */
+    min-width: 400px;
+    height: 100%;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+    position: relative;
+    scroll-behavior: smooth;
+  }
 
-  .controls-right { display: flex; gap: 1rem; align-items: center; }
-  button { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; cursor: pointer; transition: all 0.2s; }
-  button:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
-  button:disabled { opacity: 0.3; cursor: not-allowed; }
-  .dots { display: flex; gap: 4px; }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
-  .dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  /* Glassmorphic sticky header for controls */
+  .sticky-controls {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(10, 10, 15, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem;
+  }
 
-  .article-section { flex: 1; overflow-y: auto; padding: 2rem 2rem 5rem 2rem; display: flex; justify-content: center; background: var(--bg); }
-  .prose { width: 100%; max-width: 768px; }
-  .not-found { font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.5rem;
+  }
+
+  label { display: flex; flex-direction: column; gap: 0.25rem; }
+  label span { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  label strong { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--highlight); }
+  input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+  /* Markdown Container */
+  .prose-container {
+    padding: 2rem 2.5rem;
+  }
+
+  /* --- RIGHT PANE --- */
+  .right-pane {
+    flex: 1;
+    position: relative;
+    background: radial-gradient(circle at center, var(--surface2) 0%, var(--bg) 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .diagram-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* --- OVERRIDING THE PROSE STEPS (APPLE STYLE) --- */
+  :global(.apple-prose .step) {
+    background: transparent;
+    border-left: 3px solid transparent;
+    padding: 1.5rem 0 1.5rem 1.5rem;
+    margin: 1rem 0 3rem 0;
+    opacity: 0.25;
+    transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    cursor: pointer;
+    min-height: auto; /* Remove the old 65vh min-height */
+  }
+
+  :global(.apple-prose .step:hover) {
+    opacity: 0.6;
+  }
+
+  /* When the observer triggers, it adds the .is-active class */
+  :global(.apple-prose .step.is-active) {
+    opacity: 1;
+    border-left-color: var(--accent);
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.05) 0%, transparent 100%);
+    transform: translateX(5px);
+  }
+
+  :global(.apple-prose .step-badge) { margin-top: 0; }
 </style>
