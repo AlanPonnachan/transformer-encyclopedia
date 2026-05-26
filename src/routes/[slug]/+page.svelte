@@ -60,29 +60,6 @@
   <!-- LEFT PANE: CONTROLS & SCROLLING TEXT -->
   <aside class="left-pane" bind:this={articleSection}>
     
-    <!-- Sticky Hyperparameters Header -->
-    <header class="sticky-controls">
-      <div class="controls-grid">
-        <label>
-          <span>d_model:</span><strong>{$dModel}</strong>
-          <input type="range" min="128" max="1024" step="128" bind:value={$dModel} />
-        </label>
-        <label>
-          <span>heads:</span><strong>{$numHeads}</strong>
-          <input type="range" min="1" max="16" step="1" bind:value={$numHeads} />
-        </label>
-        <label>
-          <span>seq_len:</span><strong>{$seqLen}</strong>
-          <input type="range" min="3" max="12" step="1" bind:value={$seqLen} />
-        </label>
-        {#if data.slug === 'mla'}
-          <label>
-            <span>latent:</span><strong>{$latentRatio}</strong>
-            <input type="range" min="0.05" max="0.5" step="0.05" bind:value={$latentRatio} />
-          </label>
-        {/if}
-      </div>
-    </header>
 
     <!-- The Scrollytelling Markdown -->
     <div class="prose-container">

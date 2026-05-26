@@ -24,7 +24,7 @@ The original attention from *Attention Is All You Need* (Vaswani et al., 2017). 
 
 ## The Input Matrix
 
-For a sequence of `{$seqLen}` tokens, each embedded into `{$dModel}` dimensions, the input is a **[{$seqLen} × {$dModel}]** matrix. Each row is one token.
+For a sequence of <span>{$seqLen}</span> tokens, each embedded into <span>{$dModel}</span> dimensions, the input is a **[ <span>{$seqLen}</span> × <span>{$dModel}</span> ]** matrix. Each row is one token.
 
 The same matrix X is used three times — once for each of Q, K, V.
 
@@ -36,7 +36,7 @@ The same matrix X is used three times — once for each of Q, K, V.
 
 ## Three Weight Matrices
 
-Three learned projections — **W_Q**, **W_K**, **W_V** — each `[{$dModel} × {$dModel}]` — transform X into three different "views":
+Three learned projections — **W_Q**, **W_K**, **W_V** — each **[ <span>{$dModel}</span> × <span>{$dModel}</span> ]** — transform X into three different "views":
 
 - **Q** — *What am I looking for?*
 - **K** — *What do I have to offer?*
