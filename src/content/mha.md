@@ -7,7 +7,6 @@ slug: mha
   import { activeStep } from '$lib/stores/diagram';
   import { dModel, numHeads, seqLen, headDim } from '$lib/stores/config';
 
-  // Calculate math safely inside the script block
   let floatValues = $derived(2 * $dModel);
   let contextValuesM = $derived(((2 * $dModel * 100000 * 32) / 1e6).toFixed(0));
   let contextValuesGB = $derived(((2 * $dModel * 100000 * 32 * 2) / 1e9).toFixed(1));
@@ -19,7 +18,7 @@ The original attention from *Attention Is All You Need* (Vaswani et al., 2017). 
 
 ---
 
-<div class="step" data-step-id="input">
+<div class="step" data-step-id="input" data-active-dims="seqLen,dModel">
 <span class="step-badge">Step 01</span>
 
 ## The Input Matrix
@@ -30,8 +29,7 @@ The same matrix X is used three times — once for each of Q, K, V.
 
 </div>
 
-
-<div class="step" data-step-id="projections">
+<div class="step" data-step-id="projections" data-active-dims="dModel">
 <span class="step-badge">Step 02</span>
 
 ## Three Weight Matrices
@@ -44,8 +42,7 @@ Three learned projections — **W_Q**, **W_K**, **W_V** — each **[ <span>{$dMo
 
 </div>
 
-
-<div class="step" data-step-id="heads">
+<div class="step" data-step-id="heads" data-active-dims="seqLen,dModel,numHeads">
 <span class="step-badge">Step 03</span>
 
 ## Split into {$numHeads} Heads
@@ -56,8 +53,7 @@ Each head gets a slice of dimension **d_head = {$headDim}**. Heads run in parall
 
 </div>
 
-
-<div class="step" data-step-id="attn">
+<div class="step" data-step-id="attn" data-active-dims="seqLen,numHeads">
 <span class="step-badge">Step 04</span>
 
 ## Scaled Dot-Product Attention
@@ -68,8 +64,7 @@ The heatmap shows which tokens attend to which. The lower-triangle is the causal
 
 </div>
 
-
-<div class="step" data-step-id="output">
+<div class="step" data-step-id="output" data-active-dims="seqLen,dModel">
 <span class="step-badge">Step 05</span>
 
 ## Concat + W_O
@@ -79,7 +74,6 @@ All {$numHeads} head outputs are concatenated → **[{$seqLen} × {$dModel}]**, 
 The output shape is identical to the input — clean residual stream integration.
 
 </div>
-
 
 ---
 
