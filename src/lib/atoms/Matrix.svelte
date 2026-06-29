@@ -1,6 +1,7 @@
 <script lang="ts">
   import { makeMatrix, heatColor, normalize } from '$lib/math/utils';
-  import { hoveredId } from '$lib/stores/diagram';
+  import { hoveredId, inspectedCell } from '$lib/stores/diagram';
+  
   export let rows = 4, cols = 4;
   export let data: number[][] | null = null;
   export let label = '', sublabel = '', id = '';
@@ -21,27 +22,40 @@
     const u = (t - 0.5) * 2;
     return `rgb(${Math.round(180+59*u)},${Math.round(50*(1-u))},${Math.round(60*(1-u))})`;
   }
+
+  function handleCellClick(r: number, c: number, val: number, e: MouseEvent) {
+    e.stopPropagation();
+    inspectedCell.set({ id, r, c, val, label });
+  }
+
   $: w = cols * cellSize;
   $: h = rows * cellSize;
 </script>
 
 <div class="wrap" class:hl={highlight} class:dm={dimmed}>
   {#if label}<div class="lbl">{label}</div>{/if}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <svg width={w+2} height={h+2} style="display:block" role="img" aria-label={label||'matrix'}>
     {#each displayData as row, r}
       {#each row as val, c}
+        {@const isInspected = $inspectedCell?.id === id && $inspectedCell?.r === r && $inspectedCell?.c === c}
         <rect x={c*cellSize+1} y={r*cellSize+1}
           width={cellSize-2} height={cellSize-2} rx="2"
           fill={getCellColor(val)} opacity={dimmed?0.3:1}
+          stroke={isInspected ? 'var(--highlight)' : 'none'}
+          stroke-width={isInspected ? 2 : 0}
           on:mouseenter={() => hoveredId.set(`${id}-${r}-${c}`)}
           on:mouseleave={() => hoveredId.set(null)}
-          style="cursor:pointer;transition:opacity 0.2s"
+          on:click={(e) => handleCellClick(r, c, val, e)}
+          style="cursor:pointer;transition:opacity 0.2s, stroke-width 0.1s"
         />
       {/each}
     {/each}
     <rect x="0.5" y="0.5" width={w} height={h} rx="4" fill="none"
       stroke={highlight?'var(--accent)':'var(--border)'}
       stroke-width={highlight?1.5:1}
+      style="pointer-events: none;"
     />
   </svg>
   {#if sublabel}<div class="sub">{sublabel}</div>{/if}
