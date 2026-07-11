@@ -7,7 +7,6 @@ slug: mla
   import { activeStep } from '$lib/stores/diagram';
   import { dModel, latentDim, seqLen } from '$lib/stores/config';
 
-  // Calculate math safely inside the script block
   let mhaCache = $derived($dModel * 2);
   let savings = $derived(Math.round((1 - $latentDim / ($dModel * 2)) * 100));
   let bandwidthReduction = $derived((($dModel * 2) / $latentDim).toFixed(1));
@@ -19,7 +18,7 @@ Introduced in **DeepSeek-V2**, used in **V3 and R1**. Compresses the KV cache to
 
 ---
 
-<div class="step" data-step-id="mla-input">
+<div class="step" data-step-id="mla-input" data-active-dims="seqLen,dModel">
 <span class="step-badge">Step 01</span>
 
 ## Same Input, Different Strategy
@@ -31,7 +30,7 @@ The difference is what MLA does *next*: instead of projecting to full K and V im
 </div>
 
 
-<div class="step" data-step-id="mla-compress">
+<div class="step" data-step-id="mla-compress" data-active-dims="seqLen,dModel,latentRatio">
 <span class="step-badge">Step 02</span>
 
 ## The Down-Projection (KV Latent)
@@ -49,7 +48,7 @@ Memory comparison:
 </div>
 
 
-<div class="step" data-step-id="mla-expand">
+<div class="step" data-step-id="mla-expand" data-active-dims="seqLen,dModel,latentRatio">
 <span class="step-badge">Step 03</span>
 
 ## The Up-Projections at Inference
@@ -61,7 +60,7 @@ Two extra matmuls per step — but reading `{$latentDim}` values from cache vs `
 </div>
 
 
-<div class="step" data-step-id="mla-q">
+<div class="step" data-step-id="mla-q" data-active-dims="seqLen,dModel,latentRatio">
 <span class="step-badge">Step 04</span>
 
 ## Query Compression (Training Only)
