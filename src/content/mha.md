@@ -14,7 +14,7 @@ slug: mha
 
 # Multi-Head Attention
 
-The original attention from *Attention Is All You Need* (Vaswani et al., 2017). Every modern Transformer builds on this.
+The original attention from [*Attention Is All You Need*](https://arxiv.org/abs/1706.03762). Every modern Transformer builds on this.
 
 ---
 

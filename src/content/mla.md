@@ -14,7 +14,7 @@ slug: mla
 
 # Multi-Head Latent Attention
 
-Introduced in **DeepSeek-V2**, used in **V3 and R1**. Compresses the KV cache to a fraction of its normal size — with *better* modeling quality than MHA.
+Introduced in [**DeepSeek-V2**](https://arxiv.org/abs/2405.04434), used in **V3 and R1**. Compresses the KV cache to a fraction of its normal size — with *better* modeling quality than MHA.
 
 ---
 
