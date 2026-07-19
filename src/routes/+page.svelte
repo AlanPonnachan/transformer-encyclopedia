@@ -1,13 +1,10 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  const components = [
-    { id:'mha', title:'Multi-Head Attention', abbr:'MHA', desc:'The foundational attention mechanism. Q, K, V, and all that jazz.', paper:'Attention Is All You Need (2017)', color:'#6366f1', ready:true },
-    { id:'mla', title:'Multi-Head Latent Attention', abbr:'MLA', desc:"DeepSeek's KV cache compression. Smaller cache, better quality.", paper:'DeepSeek-V2 (2024)', color:'#10b981', ready:true },
-    { id:'gqa', title:'Grouped Query Attention', abbr:'GQA', desc:'Share K/V heads across multiple Q heads. Used in Llama 2/3.', paper:'GQA (Ainslie et al., 2023)', color:'#f59e0b', ready:false },
-    { id:'rope', title:'Rotary Positional Embeddings', abbr:'RoPE', desc:'Encode position by rotating Q and K in complex space.', paper:'RoFormer (Su et al., 2021)', color:'#ec4899', ready:false },
-  ];
+  import { components } from '$lib/components';
 </script>
+
 <svelte:head><title>Transformer Encyclopedia</title></svelte:head>
+
 <div style="max-width:1100px;margin:0 auto;padding:3rem 1.5rem">
   <header style="margin-bottom:4rem">
     <div style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:1rem">Interactive Reference</div>
@@ -21,6 +18,7 @@
       <span><strong style="color:var(--text)">∞</strong> interactive sliders</span>
     </div>
   </header>
+  
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem">
     {#each components as c}
       <a href={c.ready?`${base}/${c.id}`:'#'}

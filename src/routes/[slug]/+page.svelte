@@ -4,7 +4,9 @@
   import MlaDiagram from '$lib/components/mla/MlaDiagram.svelte';
   import MathLabel from '$lib/atoms/MathLabel.svelte';
   import { activeStep, activeDimensions, fullScreen, inspectedCell, stepSequence } from '$lib/stores/diagram';
-  import { onMount } from 'svelte';
+  import { onDestroy } from 'svelte';
+  import { afterNavigate } from '$app/navigation';
+  import { browser } from '$app/environment';
 
   export let data: PageData;
   const diagrams: Record<string, unknown> = { mha: MhaDiagram, mla: MlaDiagram };
@@ -15,39 +17,45 @@
   let articleSection: HTMLElement;
   let programmaticScrollTimer: ReturnType<typeof setTimeout>;
   let isScrollingProgrammatically = false;
+  let io: IntersectionObserver | null = null;
 
-  // Two-way sync logic
-  $: if ($activeStep && phases.length > 0) {
-    const targetPhase = phases.find(p => p.id === $activeStep);
-    if (targetPhase && !targetPhase.el.classList.contains('is-active')) {
-      isScrollingProgrammatically = true;
-      
-      phases.forEach(p => p.el.classList.remove('is-active'));
-      targetPhase.el.classList.add('is-active');
-      activeDimensions.set(targetPhase.dims);
+  // afterNavigate fires cleanly every time the URL changes (e.g., MHA -> MLA)
+  afterNavigate(() => {
+    // 1. Guard against SSR crashes
+    if (!browser || !articleSection) return;
+    initPage();
+  });
 
-      targetPhase.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      clearTimeout(programmaticScrollTimer);
-      programmaticScrollTimer = setTimeout(() => { isScrollingProgrammatically = false; }, 800);
-    }
-  }
+  function initPage() {
+    // 2. Clean up old state from previous page
+    if (io) { io.disconnect(); io = null; }
+    inspectedCell.set(null);
+    isScrollingProgrammatically = false;
+    articleSection.scrollTop = 0;
 
-  function handleBackdropClick() { inspectedCell.set(null); }
-  function stopClick(e: MouseEvent) { e.stopPropagation(); }
-
-  onMount(() => {
-    const stepNodes = Array.from(document.querySelectorAll('.step')) as HTMLElement[];
+    // 3. Query ONLY inside the articleSection (prevents cross-page DOM ghosting)
+    const stepNodes = Array.from(articleSection.querySelectorAll('.step')) as HTMLElement[];
     phases = stepNodes.map(el => ({ 
       id: el.dataset.stepId || '', 
       el,
       dims: el.dataset.activeDims?.split(',') || []
     }));
 
-    // Save sequence globally for the stepper
+    // Update global stepper sequence
     stepSequence.set(phases.map(p => p.id));
+    
+    // Default to the first step immediately
+    if (phases.length > 0) {
+      activeStep.set(phases[0].id);
+      activeDimensions.set(phases[0].dims);
+      phases[0].el.classList.add('is-active');
+    } else {
+      activeStep.set('');
+      activeDimensions.set([]);
+    }
 
-    const io = new IntersectionObserver(
+    // 4. Mount the Observer for scrolling
+    io = new IntersectionObserver(
       entries => {
         if (isScrollingProgrammatically) return;
         for (const e of entries) {
@@ -67,8 +75,9 @@
       { root: articleSection, threshold: 0.4, rootMargin: "-20% 0px -40% 0px" }
     );
     
+    // 5. Attach click listeners for manual navigation
     stepNodes.forEach(s => {
-      io.observe(s);
+      if (io) io.observe(s);
       s.addEventListener('click', () => {
         isScrollingProgrammatically = true;
         
@@ -81,14 +90,35 @@
         s.classList.add('is-active');
 
         s.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => { isScrollingProgrammatically = false; }, 800);
+        clearTimeout(programmaticScrollTimer);
+        programmaticScrollTimer = setTimeout(() => { isScrollingProgrammatically = false; }, 800);
       });
     });
+  }
 
-    return () => {
-      io.disconnect();
+  // Two-way sync for when activeStep changes via Full-Screen Mini-Stepper
+  $: if (browser && $activeStep && phases.length > 0) {
+    const targetPhase = phases.find(p => p.id === $activeStep);
+    if (targetPhase && !targetPhase.el.classList.contains('is-active')) {
+      isScrollingProgrammatically = true;
+      
+      phases.forEach(p => p.el.classList.remove('is-active'));
+      targetPhase.el.classList.add('is-active');
+      activeDimensions.set(targetPhase.dims);
+
+      targetPhase.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
       clearTimeout(programmaticScrollTimer);
-    };
+      programmaticScrollTimer = setTimeout(() => { isScrollingProgrammatically = false; }, 800);
+    }
+  }
+
+  function handleBackdropClick() { inspectedCell.set(null); }
+  function stopClick(e: MouseEvent) { e.stopPropagation(); }
+
+  onDestroy(() => {
+    if (io) io.disconnect();
+    clearTimeout(programmaticScrollTimer);
   });
 </script>
 
@@ -101,7 +131,7 @@
   <aside class="left-pane" bind:this={articleSection}>
     <div class="prose-container">
       <div class="prose apple-prose">
-        <svelte:component this={data.content}/>
+        <svelte:component this={DiagramComponent ? data.content : null}/>
       </div>
       <div style="height: 50vh;"></div>
     </div>
@@ -112,7 +142,7 @@
       {#if DiagramComponent}
         <svelte:component this={DiagramComponent}/>
       {:else}
-        <div class="not-found">No diagram found for "{data.slug}"</div>
+        <div class="not-found" style="font-family:'JetBrains Mono';color:var(--muted)">No diagram found for "{data.slug}"</div>
       {/if}
     </div>
 

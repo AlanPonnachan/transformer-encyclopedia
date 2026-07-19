@@ -1,18 +1,113 @@
 <script lang="ts">
   import '../app.postcss';
   import { base } from '$app/paths';
+  import { page } from '$app/stores';
+  import { components } from '$lib/components';
+
+  let dropdownOpen = false;
+  
+  // Reactively track the current page component
+  $: currentSlug = $page.params.slug;
+  $: currentComponent = components.find(c => c.id === currentSlug);
+
+  function toggleDropdown(e: Event) {
+    e.stopPropagation();
+    dropdownOpen = !dropdownOpen;
+  }
+  function closeDropdown() { dropdownOpen = false; }
 </script>
+
+<svelte:window on:click={closeDropdown} />
+
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--bg)">
-  <nav style="height:52px;background:rgba(10,10,15,0.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;position:sticky;top:0;z-index:100">
-    <a href="{base}/" style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;font-weight:700;text-decoration:none">
-      <span style="color:var(--muted)">[</span><span style="color:var(--text)">Transformer</span><span style="color:var(--accent)">Encyclopedia</span><span style="color:var(--muted)">]</span>
-    </a>
-    <div style="display:flex;gap:1.5rem;align-items:center">
-      <a href="{base}/mha" style="color:var(--muted);text-decoration:none;font-size:0.8rem;font-family:'JetBrains Mono',monospace;font-weight:500">MHA</a>
-      <a href="{base}/mla" style="color:var(--muted);text-decoration:none;font-size:0.8rem;font-family:'JetBrains Mono',monospace;font-weight:500">MLA</a>
-      <span style="color:var(--border);font-size:0.75rem;font-family:'JetBrains Mono',monospace">GQA (soon)</span>
-      <span style="color:var(--border);font-size:0.75rem;font-family:'JetBrains Mono',monospace">RoPE (soon)</span>
+  
+  <nav class="topbar">
+    <div class="nav-left">
+      <a href="{base}/" class="logo">
+        <span class="muted">[</span><span class="text">Transformer</span><span class="accent">Encyclopedia</span><span class="muted">]</span>
+      </a>
+
+      <!-- Breadcrumb Dropdown appears only on component pages -->
+      {#if currentComponent}
+        <span class="divider">/</span>
+        <div class="dropdown-container">
+          <button class="dropdown-toggle" on:click={toggleDropdown}>
+            <span style="color: {currentComponent.color}; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{currentComponent.abbr}</span>
+            <span class="title-text">{currentComponent.title}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class:rotated={dropdownOpen}><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+
+          {#if dropdownOpen}
+            <div class="dropdown-menu">
+              <div class="menu-header">Components</div>
+              {#each components as c}
+                <a href={c.ready ? `${base}/${c.id}` : '#'} 
+                  class="menu-item" 
+                  class:disabled={!c.ready} 
+                  class:active={currentSlug === c.id}
+                  on:click={closeDropdown}>
+                  <div class="menu-abbr" style="color: {c.color}">{c.abbr}</div>
+                  <div class="menu-title">{c.title}</div>
+                  {#if !c.ready}<span class="menu-badge">soon</span>{/if}
+                </a>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </div>
+    
+    <div class="nav-right">
+      <a href="https://github.com/your-username/transformer-encyclopedia" target="_blank" class="github-link">GitHub</a>
     </div>
   </nav>
+
   <main style="flex:1"><slot /></main>
 </div>
+
+<style>
+  .topbar { 
+    height: 52px; background: rgba(10,10,15,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; 
+    padding: 0 1.5rem; position: sticky; top: 0; z-index: 200; 
+  }
+  
+  .logo { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 700; text-decoration: none; }
+  .muted { color: var(--muted); } .text { color: var(--text); } .accent { color: var(--accent); }
+  
+  .nav-left { display: flex; align-items: center; gap: 0.8rem; }
+  .divider { color: var(--border); font-family: 'JetBrains Mono', monospace; font-size: 1rem; user-select: none; }
+  
+  /* Dropdown Styles */
+  .dropdown-container { position: relative; }
+  .dropdown-toggle { 
+    background: transparent; border: 1px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 0.6rem; 
+    font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; color: var(--text); padding: 4px 10px; border-radius: 6px; 
+    transition: all 0.2s; 
+  }
+  .dropdown-toggle:hover, .dropdown-toggle:focus { background: var(--surface2); border-color: var(--border); }
+  .title-text { font-weight: 500; }
+  .dropdown-toggle svg { color: var(--muted); transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
+  .dropdown-toggle svg.rotated { transform: rotate(180deg); }
+
+  .dropdown-menu { 
+    position: absolute; top: calc(100% + 8px); left: 0; background: rgba(17,17,24,0.95); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; min-width: 280px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); 
+    display: flex; flex-direction: column; gap: 2px;
+    animation: fadeIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  
+  .menu-header { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; padding: 0.5rem 0.75rem; letter-spacing: 0.05em; }
+  .menu-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; text-decoration: none; border-radius: 6px; transition: background 0.2s; }
+  .menu-item:hover:not(.disabled) { background: var(--surface2); }
+  .menu-item.active { background: rgba(99,102,241,0.08); border-left: 2px solid var(--accent); padding-left: calc(0.75rem - 2px); }
+  .menu-item.disabled { opacity: 0.35; cursor: default; }
+  .menu-abbr { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; width: 30px; }
+  .menu-title { font-size: 0.82rem; color: var(--text); flex: 1; font-weight: 500; }
+  .menu-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; color: var(--muted); border: 1px solid var(--border); padding: 0.1em 0.4em; border-radius: 3px; text-transform: uppercase; }
+
+  .nav-right { display: flex; align-items: center; }
+  .github-link { color: var(--muted); text-decoration: none; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; transition: color 0.2s; }
+  .github-link:hover { color: var(--text); }
+</style>
