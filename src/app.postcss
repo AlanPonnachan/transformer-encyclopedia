@@ -3,34 +3,56 @@
 @tailwind components;
 @tailwind utilities;
 
-
 :root {
-  --bg: #0a0a0f;       --surface: #111118;    --surface2: #16161f;
-  --border: #1e1e2e;   --accent: #6366f1;     --accent-dim: #4f46e5;
-  --text: #e2e8f0;     --muted: #64748b;      --highlight: #f59e0b;
-  --green: #10b981;    --red: #ef4444;        --blue: #3b82f6;
+  /* Default: Dark Theme */
+  --bg: #0a0a0f;       
+  --surface: #111118;    
+  --surface2: #16161f;
+  --border: #1e1e2e;   
+  --accent: #6366f1;     
+  --accent-dim: #4f46e5;
+  --text: #e2e8f0;     
+  --muted: #64748b;      
+  --highlight: #f59e0b;
+  --green: #10b981;    
+  --red: #ef4444;        
+  --blue: #3b82f6;
+  --glass-bg: rgba(17, 17, 24, 0.75);
 }
+
+:root[data-theme="light"] {
+  --bg: #f8fafc;       
+  --surface: #ffffff;    
+  --surface2: #f1f5f9;
+  --border: #e2e8f0;   
+  --accent: #4f46e5;     
+  --accent-dim: #4338ca;
+  --text: #0f172a;     
+  --muted: #64748b;      
+  --highlight: #d97706;
+  --green: #059669;    
+  --red: #dc2626;        
+  --blue: #2563eb;
+  --glass-bg: rgba(255, 255, 255, 0.75);
+}
+
 * { box-sizing: border-box; }
-html, body { background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; margin: 0; padding: 0; transition: background 0.3s, color 0.3s; }
 ::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 
-/* Prose */
-.prose h1 { font-size:1.75rem; font-weight:700; color:var(--text); margin-bottom:1rem; }
-.prose h2 { font-size:1.25rem; font-weight:600; margin-top:2rem; margin-bottom:0.75rem; color:var(--text); border-bottom:1px solid var(--border); padding-bottom:0.5rem; }
+/* Prose Updates */
+.prose h1 { font-size:1.5rem; font-weight:700; color:var(--text); margin-bottom:1rem; }
+.prose h2 { font-size:1.15rem; font-weight:600; margin-top:1.5rem; margin-bottom:0.5rem; color:var(--text); border-bottom:1px solid var(--border); padding-bottom:0.5rem; }
 .prose h3 { font-size:1rem; font-weight:600; margin-top:1.5rem; color:var(--accent); }
-.prose p  { line-height:1.8; margin-bottom:1rem; color:#94a3b8; font-size:0.925rem; }
+.prose p  { line-height:1.6; margin-bottom:1rem; color:var(--text); font-size:0.9rem; opacity: 0.85; }
 .prose code { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:0.1em 0.4em; font-family:'JetBrains Mono',monospace; font-size:0.82em; color:var(--accent); }
 .prose pre  { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem; overflow-x:auto; margin-bottom:1rem; }
 .prose pre code { background:none; border:none; padding:0; color:var(--text); }
 .prose strong { color:var(--text); font-weight:600; }
 .prose em     { color:var(--highlight); font-style:italic; }
 .prose ul  { padding-left:1.5rem; margin-bottom:1rem; }
-.prose li  { color:#94a3b8; margin-bottom:0.4rem; font-size:0.925rem; line-height:1.7; }
-.prose blockquote { border-left:3px solid var(--accent); padding:0.5rem 1rem; margin:1rem 0; background:var(--surface); border-radius:0 6px 6px 0; }
-.prose blockquote p { color:var(--muted); margin-bottom:0; font-style:italic; }
-
-/* Scrollytelling */
-.step { min-height:65vh; display:flex; flex-direction:column; justify-content:center; padding:2rem 0; }
-.step-badge { display:inline-block; background:var(--accent); color:white; font-size:0.65rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:0.2em 0.7em; border-radius:4px; margin-bottom:1rem; font-family:'JetBrains Mono',monospace; cursor:default; }
+.prose li  { color:var(--text); opacity: 0.85; margin-bottom:0.4rem; font-size:0.9rem; line-height:1.6; }
+.prose blockquote { border-left:3px solid var(--accent); padding:0.5rem 1rem; margin:1rem 0; background:var(--surface2); border-radius:0 6px 6px 0; }
+.prose blockquote p { color:var(--muted); margin-bottom:0; font-style:italic; opacity: 1; }

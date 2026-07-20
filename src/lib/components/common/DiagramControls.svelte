@@ -37,10 +37,10 @@
 <style>
   .canvas-controls {
     position: absolute; top: 1.5rem; left: 50%; transform: translateX(-50%);
-    background: rgba(17, 17, 24, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--border); border-radius: 12px; padding: 0.85rem 1.5rem;
     display: flex; gap: 1.5rem; align-items: center; z-index: 100; 
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: all 0.3s ease;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15); transition: all 0.3s ease;
   }
   
   .icon-btn {
@@ -52,7 +52,8 @@
   .div-line { width: 1px; height: 24px; background: var(--border); }
   
   .stepper { display: flex; align-items: center; gap: 0.5rem; }
-  .stepper button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+  .stepper button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 2px 8px; cursor: pointer; transition: background 0.2s; }
+  .stepper button:hover:not(:disabled) { background: var(--border); }
   .stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
   
   .badge { background: var(--accent); color: white; font-size: 0.65rem; font-weight: 700; padding: 0.3em 0.6em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
