@@ -1,29 +1,45 @@
 <script lang="ts">
   import BlueprintCard from '$lib/components/common/BlueprintCard.svelte';
   import InteractiveCard from '$lib/components/common/InteractiveCard.svelte';
+  import Matrix from '$lib/atoms/Matrix.svelte';
+  import Vector from '$lib/atoms/Vector.svelte';
 
-  // --- MACRO STATE ---
   const configs = {
     '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: 8192 },
     '70B': { dim: 8192, n_layers: 80, n_heads: 64, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '28,672', ctx: 8192 }
   };
   let activeConfig: '8B' | '70B' = '8B';
   $: c = configs[activeConfig];
-  let hoveredGroup: string | null = null;
 
-  // --- ROPE STATE ---
-  let tokenPos = 0;
-  // A base frequency for visualization (in real RoPE, this varies per feature pair)
-  const thetaBase = 0.5; 
-  $: angleRad = tokenPos * thetaBase;
-  // Initial vector [1, 0] rotated by angle
-  $: vecX = Math.cos(angleRad);
-  $: vecY = Math.sin(angleRad);
+  // --- MACRO STATE (X-Ray) ---
+  let hoveredNode: string | null = null;
+  function handleNodeHover(nodeId: string) { hoveredNode = nodeId; }
+  function clearHover() { hoveredNode = null; }
+  function scrollTo(id: string) {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // --- EMBEDDING MICRO VIEW STATE ---
+  const visualVocabSize = 10;
+  const visualDim = 8;
+  const seqLen = 4;
+  let inputTokens = [2, 7, 0, 9]; 
+  let activeTokenIdx: number | null = null;
+
+  // --- ROPE MICRO VIEW STATE ---
+  let ropePos = 1; // Token position (m)
+  let ropeFeatIdx = 0; // Feature dimension pair (i)
+  const headDim = 128; // Llama 3 8B: 4096 / 32 = 128
+  const thetaBase = 500000; // Llama 3 specific theta
+
+  // Math: theta_i = base^(-2i / d) -> base^(-i / (d/2))
+  $: theta_i = Math.pow(thetaBase, -(ropeFeatIdx / headDim));
+  $: angleRad = ropePos * theta_i;
   
-  // --- GQA STATE ---
-  let kvHeadsVisual = 4; // visual Q heads = 16, so KV can be 1, 2, 4, 8, 16
-  const qHeadsVisual = 16;
-  $: groupSize = qHeadsVisual / kvHeadsVisual;
+  // Plotting a base vector [1, 0] rotated by angleRad
+  $: vecX = Math.cos(angleRad) * 100;
+  $: vecY = Math.sin(angleRad) * 100;
 </script>
 
 <svelte:head><title>Llama 3 Architecture — Transformer Encyclopedia</title></svelte:head>
@@ -34,8 +50,8 @@
     <div class="breadcrumb">ARCHITECTURES › LLAMA 3</div>
     <div class="header-split">
       <div>
-        <h1>Llama 3 Playbook</h1>
-        <p>Explore the macro-architecture and interact with the micro-mechanisms that define Llama 3.</p>
+        <h1>Llama 3 Engine</h1>
+        <p>Bottom-to-top data flow. Hover to X-Ray the tensor shapes. Click to deep-dive.</p>
       </div>
       <div class="config-selector">
         <span>Model Size:</span>
@@ -47,228 +63,269 @@
     </div>
   </header>
 
-  <!-- CARD 1: THE MACRO BLUEPRINT -->
-  <BlueprintCard id="llama3-macro" title="1. End-to-End Architecture" subtitle="The Macro view. Data flows bottom-to-top.">
-    <div class="svg-container macro-svg">
-      <svg viewBox="0 0 1000 850" preserveAspectRatio="xMidYMid meet">
+  <!-- ==========================================
+       CARD 1: MACRO DATA FLOW (X-RAY SVG)
+       ========================================== -->
+  <BlueprintCard id="llama3-macro" title="Macro View" subtitle="Hover over any component to see the exact input and output tensor shapes flowing through it.">
+    
+    <div class="svg-container">
+      <!-- Fixed the clipping issue by adjusting viewBox and removing height: 100% -->
+      <svg viewBox="0 0 1000 900" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text)" /></marker>
-          <marker id="arrow-blue" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--blue)" /></marker>
+          <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)" /></marker>
+          <marker id="arrow-active" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" /></marker>
         </defs>
 
-        <!-- Big Transformer Block Container -->
-        <rect x="250" y="200" width="300" height="420" rx="20" fill="var(--surface2)" stroke="var(--border)" stroke-width="2" />
-        <rect x="280" y="230" width="240" height="360" rx="16" fill="rgba(0,0,0,0.1)" stroke="var(--border)" stroke-width="1.5" />
+        <!-- Base group dims when a node is hovered -->
+        <g style="transition: opacity 0.3s;" opacity={hoveredNode ? 0.2 : 1}>
+          <rect x="250" y="200" width="300" height="420" rx="20" fill="var(--surface2)" stroke="var(--border)" stroke-width="2" />
+          <rect x="280" y="230" width="240" height="360" rx="16" fill="rgba(0,0,0,0.1)" stroke="var(--border)" stroke-width="1.5" />
 
-        <!-- 32x Bracket -->
-        <path d="M 235 620 C 210 620, 210 410, 180 410 C 210 410, 210 200, 235 200" fill="none" stroke="var(--text)" stroke-width="3" />
-        <text x="160" y="415" text-anchor="end" class="bold-text" fill="var(--blue)" font-size="20">{c.n_layers} ×</text>
+          <!-- 32x Bracket -->
+          <path d="M 235 620 C 210 620, 210 410, 180 410 C 210 410, 210 200, 235 200" fill="none" stroke="var(--text)" stroke-width="3" />
+          <text x="160" y="415" text-anchor="end" class="bold-text" fill="var(--text)" font-size="20">{c.n_layers} ×</text>
 
-        <!-- Residual Stream Line -->
-        <line x1="400" y1="700" x2="400" y2="100" stroke="var(--text)" stroke-width="2" marker-end="url(#arrow)" />
+          <!-- Default Base Wires -->
+          <line x1="400" y1="700" x2="400" y2="100" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)" />
+          <line x1="400" y1="755" x2="400" y2="735" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)" />
+          <line x1="250" y1="465" x2="285" y2="465" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)" />
+          <path d="M 400 580 L 500 580 L 500 400 L 420 400" fill="none" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)" />
+          <path d="M 400 380 L 500 380 L 500 210 L 420 210" fill="none" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)" />
 
+          <circle cx="400" cy="400" r="14" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
+          <text x="400" y="405" text-anchor="middle" class="bold-text">+</text>
+          <circle cx="400" cy="210" r="14" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
+          <text x="400" y="215" text-anchor="middle" class="bold-text">+</text>
+
+          <!-- Annotations -->
+          <text x="120" y="550" text-anchor="end" class="bold-text">Context length</text>
+          <text x="120" y="570" text-anchor="end" class="bold-text">of <tspan fill="var(--text)">{c.ctx}</tspan> tokens</text>
+          <path d="M 130 550 L 190 490" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4,4" />
+
+          <text x="560" y="45" text-anchor="start" class="bold-text">Vocabulary size <tspan fill="var(--text)">{c.vocab_size}</tspan></text>
+          <line x1="550" y1="50" x2="490" y2="80" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4,4" />
+
+          <text x="560" y="630" text-anchor="start" class="bold-text">Embedding dim <tspan fill="var(--text)">{c.dim}</tspan></text>
+          <line x1="550" y1="635" x2="510" y2="635" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4,4" />
+        </g>
+
+        <!-- X-RAY ACTIVE WIRES (Rendered on top) -->
+        {#if hoveredNode === 'embed'}
+          <line x1="400" y1="695" x2="400" y2="655" stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-active)" />
+          <rect x="420" y="665" width="130" height="24" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="1" />
+          <text x="485" y="682" text-anchor="middle" class="tensor-text">[bsz, seqlen]</text>
+          
+          <line x1="400" y1="615" x2="400" y2="560" stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-active)" />
+          <rect x="420" y="575" width="160" height="24" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="1" />
+          <text x="500" y="592" text-anchor="middle" class="tensor-text">[bsz, seqlen, {c.dim}]</text>
+        {/if}
+
+        {#if hoveredNode === 'rope'}
+          <!-- RoPE applies positional rotation to Q and K inside the Attention block -->
+          <line x1="250" y1="465" x2="280" y2="465" stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-active)" />
+          <rect x="180" y="390" width="150" height="40" rx="4" fill="var(--bg)" stroke="var(--accent)" stroke-width="1" />
+          <text x="255" y="407" text-anchor="middle" class="tensor-text">Rotates Q & K</text>
+          <text x="255" y="422" text-anchor="middle" class="tensor-text">based on position</text>
+          <path d="M 255 430 L 255 450" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4,4" />
+        {/if}
+
+        {#if hoveredNode === 'attn'}
+          <line x1="400" y1="525" x2="400" y2="490" stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-active)" />
+          <rect x="415" y="495" width="160" height="24" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="1" />
+          <text x="495" y="512" text-anchor="middle" class="tensor-text">[bsz, seqlen, {c.dim}]</text>
+          
+          <line x1="400" y1="440" x2="400" y2="415" stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-active)" />
+          <rect x="415" y="420" width="160" height="24" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="1" />
+          <text x="495" y="437" text-anchor="middle" class="tensor-text">[bsz, seqlen, {c.dim}]</text>
+        {/if}
+
+        {#if hoveredNode === 'ffn'}
+          <line x1="400" y1="325" x2="400" y2="285" stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-active)" />
+          <rect x="415" y="295" width="160" height="24" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="1" />
+          <text x="495" y="312" text-anchor="middle" class="tensor-text">[bsz, seqlen, {c.dim}]</text>
+          
+          <line x1="400" y1="245" x2="400" y2="225" stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-active)" />
+          <rect x="415" y="222" width="160" height="24" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="1" />
+          <text x="495" y="239" text-anchor="middle" class="tensor-text">[bsz, seqlen, {c.dim}]</text>
+          
+          <!-- Special FFN Internal Hint -->
+          <path d="M 480 265 L 540 265" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4,4" />
+          <rect x="540" y="253" width="220" height="24" rx="4" fill="var(--bg)" stroke="var(--accent)" stroke-width="1" />
+          <text x="650" y="270" text-anchor="middle" class="tensor-text">Internal expansion: {c.ffn_hidden}</text>
+        {/if}
+
+        <!-- INTERACTIVE BLOCKS (Always on top to catch hover) -->
         <text x="400" y="770" text-anchor="middle" class="small-text">Sample input text</text>
-        <line x1="400" y1="755" x2="400" y2="735" stroke="var(--text)" stroke-width="2" marker-end="url(#arrow)" />
 
-        <rect x="330" y="695" width="140" height="35" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="717" text-anchor="middle" class="node-text">Tokenized text</text>
+        <rect x="330" y="695" width="140" height="35" rx="8" fill="var(--bg)" stroke="var(--border)" stroke-width="2" opacity={hoveredNode ? 0.3 : 1} />
+        <text x="400" y="717" text-anchor="middle" class="node-text" opacity={hoveredNode ? 0.3 : 1}>Tokenized text</text>
 
-        <rect x="300" y="615" width="200" height="40" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="640" text-anchor="middle" class="node-text">Token embedding layer</text>
-
-        <rect x="330" y="525" width="140" height="35" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="547" text-anchor="middle" class="node-text">RMSNorm 1</text>
-
-        <!-- RoPE Side Input -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <g style="cursor:pointer;" on:click={() => document.getElementById('rope-card')?.scrollIntoView({behavior:'smooth'})}>
-          <rect x="180" y="450" width="70" height="30" rx="8" fill="rgba(236, 72, 153, 0.1)" stroke="var(--highlight)" stroke-width="2" />
-          <text x="215" y="470" text-anchor="middle" class="bold-text" fill="var(--highlight)">RoPE</text>
-          <line x1="250" y1="465" x2="285" y2="465" stroke="var(--highlight)" stroke-width="2" marker-end="url(#arrow)" />
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('embed')} on:mouseleave={clearHover} on:click={() => scrollTo('embed-card')} style="opacity: {hoveredNode === 'embed' || !hoveredNode ? 1 : 0.3}">
+          <rect x="300" y="615" width="200" height="40" rx="8" />
+          <text x="400" y="640" text-anchor="middle">Token embedding layer</text>
         </g>
 
-        <!-- Attention -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <g class="interactive-group" on:mouseenter={() => hoveredGroup = 'attn'} on:mouseleave={() => hoveredGroup = null} on:click={() => document.getElementById('gqa-card')?.scrollIntoView({behavior:'smooth'})}>
-          <rect x="290" y="440" width="220" height="50" rx="8" fill="rgba(59, 130, 246, 0.1)" stroke="var(--blue)" stroke-width="2" style="transition: all 0.2s;" />
-          <text x="400" y="465" text-anchor="middle" class="bold-text" fill="var(--blue)">Masked grouped-query</text>
-          <text x="400" y="480" text-anchor="middle" class="bold-text" fill="var(--blue)">attention</text>
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('norm1')} on:mouseleave={clearHover} style="opacity: {hoveredNode === 'norm1' || !hoveredNode ? 1 : 0.3}">
+          <rect x="330" y="525" width="140" height="35" rx="8" />
+          <text x="400" y="547" text-anchor="middle">RMSNorm 1</text>
         </g>
 
-        <circle cx="400" cy="400" r="14" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="405" text-anchor="middle" class="bold-text">+</text>
-        <path d="M 400 580 L 500 580 L 500 400 L 420 400" fill="none" stroke="var(--text)" stroke-width="2" marker-end="url(#arrow)" />
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('rope')} on:mouseleave={clearHover} on:click={() => scrollTo('rope-card')} style="opacity: {hoveredNode === 'rope' || !hoveredNode ? 1 : 0.3}">
+          <rect x="180" y="450" width="70" height="30" rx="8" />
+          <text x="215" y="470" text-anchor="middle">RoPE</text>
+        </g>
 
-        <rect x="330" y="325" width="140" height="35" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="347" text-anchor="middle" class="node-text">RMSNorm 2</text>
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('attn')} on:mouseleave={clearHover} style="opacity: {hoveredNode === 'attn' || !hoveredNode ? 1 : 0.3}">
+          <rect x="290" y="440" width="220" height="50" rx="8" />
+          <text x="400" y="465" text-anchor="middle">Grouped-query</text>
+          <text x="400" y="480" text-anchor="middle">attention</text>
+        </g>
 
-        <!-- Feed Forward -->
-        <rect x="320" y="245" width="160" height="40" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="270" text-anchor="middle" class="node-text">Feed forward</text>
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('norm2')} on:mouseleave={clearHover} style="opacity: {hoveredNode === 'norm2' || !hoveredNode ? 1 : 0.3}">
+          <rect x="330" y="325" width="140" height="35" rx="8" />
+          <text x="400" y="347" text-anchor="middle">RMSNorm 2</text>
+        </g>
 
-        <circle cx="400" cy="210" r="14" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="215" text-anchor="middle" class="bold-text">+</text>
-        <path d="M 400 380 L 500 380 L 500 210 L 420 210" fill="none" stroke="var(--text)" stroke-width="2" marker-end="url(#arrow)" />
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('ffn')} on:mouseleave={clearHover} style="opacity: {hoveredNode === 'ffn' || !hoveredNode ? 1 : 0.3}">
+          <rect x="320" y="245" width="160" height="40" rx="8" />
+          <text x="400" y="270" text-anchor="middle">Feed forward</text>
+        </g>
 
-        <rect x="330" y="145" width="140" height="35" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="167" text-anchor="middle" class="node-text">Final RMSNorm</text>
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('norm3')} on:mouseleave={clearHover} style="opacity: {hoveredNode === 'norm3' || !hoveredNode ? 1 : 0.3}">
+          <rect x="330" y="145" width="140" height="35" rx="8" />
+          <text x="400" y="167" text-anchor="middle">Final RMSNorm</text>
+        </g>
 
-        <rect x="320" y="65" width="160" height="35" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
-        <text x="400" y="87" text-anchor="middle" class="node-text">Linear output layer</text>
-
-        <!-- Annotations -->
-        <text x="120" y="550" text-anchor="end" class="bold-text">Supported</text>
-        <text x="120" y="570" text-anchor="end" class="bold-text">context length</text>
-        <text x="120" y="590" text-anchor="end" class="bold-text">of <tspan fill="var(--blue)">{c.ctx}</tspan> tokens</text>
-        <path d="M 130 550 L 190 490" fill="none" stroke="var(--text)" stroke-width="2" stroke-dasharray="4,4" />
-
-        <text x="560" y="45" text-anchor="start" class="bold-text">Vocabulary size of <tspan fill="var(--blue)">{c.vocab_size}</tspan></text>
-        <line x1="550" y1="50" x2="490" y2="80" stroke="var(--text)" stroke-width="2" stroke-dasharray="4,4" />
-
-        <text x="590" y="630" text-anchor="start" class="bold-text">Embedding</text>
-        <text x="590" y="650" text-anchor="start" class="bold-text">dimension of <tspan fill="var(--blue)">{c.dim}</tspan></text>
-        <line x1="580" y1="635" x2="510" y2="635" stroke="var(--text)" stroke-width="2" stroke-dasharray="4,4" />
-
-        <text x="590" y="460" text-anchor="start" class="bold-text"><tspan fill="var(--blue)">{c.n_heads}</tspan> Q-heads</text>
-        <text x="590" y="480" text-anchor="start" class="bold-text"><tspan fill="var(--blue)">{c.n_kv_heads}</tspan> KV-heads (GQA)</text>
-        <line x1="580" y1="465" x2="520" y2="465" stroke="var(--text)" stroke-width="2" stroke-dasharray="4,4" />
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <g class="interactive-node" on:mouseenter={() => handleNodeHover('output')} on:mouseleave={clearHover} style="opacity: {hoveredNode === 'output' || !hoveredNode ? 1 : 0.3}">
+          <rect x="320" y="65" width="160" height="35" rx="8" />
+          <text x="400" y="87" text-anchor="middle">Linear output layer</text>
+        </g>
       </svg>
     </div>
-    <svelte:fragment slot="footer">
-      This is the macro routing of Llama 3. Scroll down to interact with the specific mechanisms that make it unique.
-    </svelte:fragment>
   </BlueprintCard>
 
-  <!-- CARD 2: INTERACTIVE ROPE -->
-  <span id="rope-card"></span>
-  <InteractiveCard title="2. RoPE (Rotary Positional Embeddings)" subtitle="Instead of adding absolute position vectors, RoPE rotates feature pairs in the Query and Key matrices based on their sequence position.">
+  <!-- ==========================================
+       CARD 2: TOKEN EMBEDDING DEEP DIVE
+       ========================================== -->
+  <span id="embed-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
+  
+  <InteractiveCard title="Layer 0: Token Embedding" subtitle="Before any math happens, discrete words are converted into continuous vectors.">
     
-    <div class="split-layout">
-      
-      <!-- Controls -->
-      <div class="control-panel">
-        <div class="metric">
-          <span class="lbl">Token Position (m)</span>
-          <span class="val" style="color: var(--highlight)">{tokenPos}</span>
+    <div class="embed-workspace">
+      <!-- INPUT SEQUENCE -->
+      <div class="col">
+        <div class="col-title">1. Tokenized Prompt<br/><code>[seqlen={seqLen}]</code></div>
+        <div class="token-tape">
+          {#each inputTokens as tok, i}
+            <!-- svelte-ignore a11y-no-static-element-interactions -->
+            <div class="token-cell" 
+                 class:active={activeTokenIdx === i}
+                 on:mouseenter={() => activeTokenIdx = i}
+                 on:mouseleave={() => activeTokenIdx = null}>
+              <span class="lbl">Seq[{i}]</span>
+              <span class="val">ID: {tok}</span>
+            </div>
+          {/each}
         </div>
-        <input type="range" min="0" max="12" step="1" bind:value={tokenPos} style="width: 100%; margin: 1.5rem 0; accent-color: var(--highlight);" />
-        
-        <div class="math-box">
-          <p class="muted">A 2D feature slice [x, y] is rotated by angle <br/><strong>θ = position × base_frequency</strong>.</p>
-          <div class="math-line">x' = x·cos(θ) - y·sin(θ)</div>
-          <div class="math-line">y' = x·sin(θ) + y·cos(θ)</div>
+        <p class="helper">Hover to slice tensor →</p>
+      </div>
+
+      <!-- LOOKUP OPERATION -->
+      <div class="col">
+        <div class="col-title">2. Embedding Matrix<br/><code>[vocab_size={c.vocab_size}, dim={c.dim}]</code></div>
+        <div class="matrix-viz">
+          <Matrix id="embed_weight" rows={visualVocabSize} cols={visualDim} cellSize={22} colorMode="signed" />
+          {#if activeTokenIdx !== null}
+            {@const tokID = inputTokens[activeTokenIdx]}
+            <div class="row-highlight" style="top: {tokID * 22 + 1}px; height: 20px; width: {visualDim * 22 - 2}px;"></div>
+          {/if}
         </div>
       </div>
 
-      <!-- Visualization -->
-      <div class="viz-panel">
-        <svg viewBox="-150 -150 300 300" class="rope-svg">
-          <!-- Grid/Axes -->
-          <line x1="-150" y1="0" x2="150" y2="0" stroke="var(--border)" stroke-width="1" />
-          <line x1="0" y1="-150" x2="0" y2="150" stroke="var(--border)" stroke-width="1" />
-          <circle cx="0" cy="0" r="100" fill="none" stroke="var(--surface2)" stroke-width="2" stroke-dasharray="4,4" />
-          
-          <!-- Base Vector (Position 0) -->
-          <line x1="0" y1="0" x2="100" y2="0" stroke="var(--muted)" stroke-width="2" stroke-dasharray="2,2" />
-          <circle cx="100" cy="0" r="4" fill="var(--muted)" />
-
-          <!-- Rotated Vector -->
-          <line x1="0" y1="0" x2={vecX * 100} y2={-vecY * 100} stroke="var(--highlight)" stroke-width="4" style="transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
-          <circle cx={vecX * 100} cy={-vecY * 100} r="6" fill="var(--highlight)" style="transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
-
-          <!-- Arc showing the rotation -->
-          {#if tokenPos > 0}
-            <path d="M 40 0 A 40 40 0 {angleRad > Math.PI ? 1 : 0} 0 {vecX * 40} {-vecY * 40}" fill="none" stroke="var(--highlight)" stroke-width="2" opacity="0.5" style="transition: all 0.3s;" />
-          {/if}
-        </svg>
+      <!-- OUTPUT TENSOR -->
+      <div class="col">
+        <div class="col-title">3. Hidden State<br/><code>[seqlen={seqLen}, dim={c.dim}]</code></div>
+        <div class="tensor-stack">
+          {#each inputTokens as tok, i}
+            <div class="extracted-vec" class:active-vec={activeTokenIdx === i}>
+               <Vector length={visualDim} direction="horizontal" cellSize={22} />
+            </div>
+          {/each}
+        </div>
       </div>
     </div>
-    
-    <svelte:fragment slot="footer">
-      Drag the slider! Notice how the vector rotates further around the circle as the token position increases. This relative rotation allows the model to naturally understand distance between tokens when calculating Attention.
-    </svelte:fragment>
   </InteractiveCard>
 
-  <!-- CARD 3: INTERACTIVE GQA -->
-  <span id="gqa-card"></span>
-  <InteractiveCard title="3. Grouped-Query Attention (GQA)" subtitle="Standard Multi-Head Attention (MHA) has 1 Key/Value head for every Query head. This uses too much KV Cache memory. GQA shares KV heads across multiple Query heads.">
+  <!-- ==========================================
+       CARD 3: ROPE (ROTARY POSITIONAL EMBEDDING)
+       ========================================== -->
+  <span id="rope-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
+  
+  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="Llama 3 encodes position by rotating feature pairs in the Query and Key matrices in 2D space. The rotation angle depends on both the Token Position and the Feature Index.">
     
-    <div class="split-layout">
-      <!-- Controls -->
-      <div class="control-panel">
-        <div class="metric">
-          <span class="lbl">KV Heads</span>
-          <span class="val" style="color: var(--blue)">{kvHeadsVisual}</span>
+    <div class="rope-workspace">
+      
+      <!-- CONTROLS -->
+      <div class="rope-controls">
+        <div class="ctrl-group">
+          <div class="lbl-row">
+            <span>Token Position (m)</span>
+            <strong style="color: var(--highlight)">{ropePos}</strong>
+          </div>
+          <input type="range" min="0" max="10" step="1" bind:value={ropePos} class="hl-slider" />
+          <p class="muted-hint">Words later in the sentence rotate further.</p>
         </div>
-        <input type="range" min="1" max="16" step="1" bind:value={kvHeadsVisual} on:input={(e) => {
-          // Snap to powers of 2 for clean visualization (1, 2, 4, 8, 16)
-          const val = Number(e.currentTarget.value);
-          const snapped = [1, 2, 4, 8, 16].reduce((prev, curr) => Math.abs(curr - val) < Math.abs(prev - val) ? curr : prev);
-          kvHeadsVisual = snapped;
-        }} style="width: 100%; margin: 1.5rem 0; accent-color: var(--blue);" />
-        
-        <div class="badge-row">
-          {#if kvHeadsVisual === 16}
-            <span class="mode-badge">MHA (16:16) - High Memory</span>
-          {:else if kvHeadsVisual === 1}
-            <span class="mode-badge mqa">MQA (16:1) - Low Quality</span>
-          {:else}
-            <span class="mode-badge gqa">GQA (16:{kvHeadsVisual}) - Llama 3 Style</span>
-          {/if}
+
+        <div class="ctrl-group">
+          <div class="lbl-row">
+            <span>Feature Index Pair (i)</span>
+            <strong style="color: var(--blue)">{ropeFeatIdx}</strong>
+          </div>
+          <input type="range" min="0" max={headDim - 2} step="2" bind:value={ropeFeatIdx} class="blue-slider" />
+          <p class="muted-hint">Higher dimensions rotate much slower (Llama 3 uses a massive theta base of 500,000).</p>
         </div>
-        
-        <p class="muted" style="margin-top: 1rem;">
-          Query Heads: 16<br/>
-          Ratio: <strong>{groupSize} Q-heads</strong> per KV-head.
-        </p>
+
+        <div class="math-box">
+          <div class="math-title">Llama 3 Rotation Formula:</div>
+          <div class="math-eq">θ = m × (500000 <sup>-2i / d</sup>)</div>
+          <div class="math-res">Angle: {(angleRad * (180/Math.PI)).toFixed(1)}°</div>
+        </div>
       </div>
 
-      <!-- Visualization -->
-      <div class="viz-panel gqa-viz">
-        <svg viewBox="0 0 600 300" width="100%" height="100%">
+      <!-- 2D ROTATION VIZ -->
+      <div class="rope-viz">
+        <svg viewBox="-120 -120 240 240" class="circle-svg">
+          <!-- Background Grid & Circle -->
+          <line x1="-120" y1="0" x2="120" y2="0" stroke="var(--border)" stroke-width="1" />
+          <line x1="0" y1="-120" x2="0" y2="120" stroke="var(--border)" stroke-width="1" />
+          <circle cx="0" cy="0" r="100" fill="none" stroke="var(--surface2)" stroke-width="2" stroke-dasharray="4,4" />
           
-          <!-- Query Heads (Top Row) -->
-          <text x="300" y="40" text-anchor="middle" class="bold-text">Query Heads (Q)</text>
-          {#each Array(qHeadsVisual) as _, i}
-            {@const x = 30 + i * 36}
-            <rect x={x} y="60" width="24" height="24" rx="4" fill="var(--surface2)" stroke="var(--border)" stroke-width="2" />
-          {/each}
+          <!-- Original Vector (m=0) -->
+          <line x1="0" y1="0" x2="100" y2="0" stroke="var(--muted)" stroke-width="2" stroke-dasharray="2,2" />
+          <circle cx="100" cy="0" r="4" fill="var(--muted)" />
+          <text x="105" y="-5" class="svg-label" fill="var(--muted)">pos=0</text>
 
-          <!-- Connection Lines -->
-          {#each Array(qHeadsVisual) as _, qIdx}
-            <!-- Calculate which KV head this Q head routes to -->
-            {@const kvIdx = Math.floor(qIdx / groupSize)}
-            
-            {@const qX = 30 + qIdx * 36 + 12}
-            {@const qY = 84}
-            
-            <!-- KV heads are spaced evenly across the total width -->
-            <!-- Total width = (16 * 36) = 576. Margin = 30. -->
-            {@const spacingKV = 540 / (kvHeadsVisual + 1)}
-            {@const kvX = 30 + spacingKV * (kvIdx + 1)}
-            {@const kvY = 210}
+          <!-- Rotated Vector -->
+          <line x1="0" y1="0" x2={vecX} y2={-vecY} stroke="var(--highlight)" stroke-width="3" style="transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
+          <circle cx={vecX} cy={-vecY} r="6" fill="var(--highlight)" style="transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
+          <text x={vecX + (vecX>=0?10:-35)} y={-vecY + (vecY>=0?-10:15)} class="svg-label" fill="var(--highlight)" style="transition: all 0.3s;">pos={ropePos}</text>
 
-            <path d="M {qX} {qY} C {qX} {qY + 60}, {kvX} {kvY - 60}, {kvX} {kvY}" 
-                  fill="none" stroke="var(--blue)" stroke-width="2" opacity="0.6" 
-                  style="transition: d 0.4s cubic-bezier(0.4, 0, 0.2, 1);" />
-          {/each}
-
-          <!-- KV Heads (Bottom Row) -->
-          <text x="300" y="270" text-anchor="middle" class="bold-text">Key / Value Cache (KV)</text>
-          {#each Array(kvHeadsVisual) as _, i}
-            {@const spacingKV = 540 / (kvHeadsVisual + 1)}
-            {@const x = 30 + spacingKV * (i + 1) - 16}
-            <rect x={x} y="210" width="32" height="32" rx="6" fill="rgba(59, 130, 246, 0.2)" stroke="var(--blue)" stroke-width="2" 
-                  style="transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);" />
-          {/each}
-
+          <!-- Arc indicating rotation -->
+          {#if ropePos > 0 && angleRad > 0.05}
+            <path d="M 30 0 A 30 30 0 {angleRad > Math.PI ? 1 : 0} 0 {vecX * 0.3} {-vecY * 0.3}" fill="none" stroke="var(--highlight)" stroke-width="2" opacity="0.6" style="transition: all 0.3s;" />
+          {/if}
         </svg>
       </div>
+
     </div>
-    
-    <svelte:fragment slot="footer">
-      As you reduce the KV heads, multiple Query heads route to a single shared KV cache block. In Llama 3 8B, they use a 4:1 ratio (32 Q-heads, 8 KV-heads), saving 75% of the memory footprint during generation!
-    </svelte:fragment>
   </InteractiveCard>
 
 </div>
@@ -286,29 +343,60 @@
   .config-selector span { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
   .config-selector select { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; cursor: pointer; outline: none; }
   
-  /* SVG Text Styling */
-  .node-text { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 500; fill: var(--text); pointer-events: none; }
+  /* ================== MACRO SVG ================== */
+  .svg-container { width: 100%; display: flex; justify-content: center; overflow: hidden; padding: 1rem 0; margin: 0 auto; }
+  .svg-container svg { width: 100%; height: auto; max-height: 750px; overflow: visible; }
+  
+  .node-text { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 500; fill: var(--text); pointer-events: none; transition: fill 0.2s; }
   .small-text { font-family: 'JetBrains Mono', monospace; font-size: 12px; fill: var(--muted); pointer-events: none; }
   .bold-text { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; fill: var(--text); pointer-events: none; }
-  .macro-svg { width: 100%; max-height: 700px; display: flex; justify-content: center; }
+  .tensor-text { font-family: 'JetBrains Mono', monospace; font-size: 11px; fill: var(--accent); font-weight: 700; }
 
-  /* Interactive Cards Layout */
-  .split-layout { display: flex; gap: 3rem; align-items: center; width: 100%; padding: 1rem 0; }
-  .control-panel { flex: 0 0 300px; background: var(--surface2); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); }
-  .viz-panel { flex: 1; display: flex; justify-content: center; align-items: center; min-height: 350px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px dashed var(--border); }
+  .interactive-node { cursor: pointer; transition: opacity 0.3s; }
+  .interactive-node rect { fill: var(--surface); stroke: var(--border); stroke-width: 2; transition: all 0.2s; }
+  .interactive-node text { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; fill: var(--text); pointer-events: none; transition: fill 0.2s; }
+  .interactive-node:hover rect { stroke: var(--accent); fill: rgba(99, 102, 241, 0.1); transform: scale(1.02); transform-origin: center; }
+  .interactive-node:hover text { fill: var(--accent); }
+
+  /* ================== COMPONENT: EMBEDDING ================== */
+  .embed-workspace { display: flex; justify-content: center; gap: 4rem; align-items: flex-start; overflow-x: auto; padding: 2rem 0; width: 100%; }
+  .col { display: flex; flex-direction: column; gap: 1.5rem; }
+  .col-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text); text-align: center; }
+  .col-title code { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); display: block; margin-top: 0.4rem; }
+
+  .token-tape { display: flex; flex-direction: column; gap: 0.5rem; }
+  .token-cell { background: var(--surface); border: 1px solid var(--border); padding: 0.75rem 1.25rem; border-radius: 6px; display: flex; justify-content: space-between; gap: 2rem; cursor: crosshair; transition: all 0.2s; }
+  .token-cell .lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); }
+  .token-cell .val { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text); }
+  .token-cell.active { border-color: var(--highlight); background: rgba(245, 158, 11, 0.1); transform: translateX(5px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
   
-  .metric { display: flex; flex-direction: column; }
-  .metric .lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
-  .metric .val { font-family: 'Space Grotesk', sans-serif; font-size: 2.5rem; font-weight: 700; line-height: 1; }
+  .helper { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--highlight); text-align: center; font-style: italic; opacity: 0.8; }
+
+  .matrix-viz { position: relative; padding: 1px; background: var(--bg); border-radius: 4px; border: 1px solid var(--border); }
+  .row-highlight { position: absolute; left: 1px; border: 2px solid var(--highlight); background: rgba(245, 158, 11, 0.3); border-radius: 2px; pointer-events: none; z-index: 10; transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+  .tensor-stack { display: flex; flex-direction: column; gap: 2px; background: var(--bg); padding: 2px; border-radius: 4px; border: 1px solid var(--border); }
+  .extracted-vec { transition: all 0.2s; background: var(--surface); border-radius: 2px; }
+  .extracted-vec.active-vec { filter: drop-shadow(0 0 10px var(--highlight)); transform: scale(1.08); z-index: 10; position: relative; }
+
+  /* ================== COMPONENT: ROPE ================== */
+  .rope-workspace { display: flex; gap: 4rem; align-items: center; justify-content: center; padding: 2rem; }
   
-  .math-box { background: var(--bg); border: 1px solid var(--border); padding: 1rem; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text); }
-  .math-line { color: var(--accent); margin-top: 0.5rem; }
+  .rope-controls { flex: 1; max-width: 400px; display: flex; flex-direction: column; gap: 2rem; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 0.5rem; }
+  .lbl-row { display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
+  .lbl-row strong { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; }
   
-  .rope-svg { width: 100%; max-width: 350px; }
-  .gqa-viz { padding: 1rem; }
-  
-  .badge-row { display: flex; gap: 0.5rem; }
-  .mode-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
-  .mode-badge.gqa { background: rgba(59, 130, 246, 0.1); border-color: var(--blue); color: var(--blue); font-weight: 600; }
-  .mode-badge.mqa { background: rgba(239, 68, 68, 0.1); border-color: var(--red); color: var(--red); }
+  .hl-slider { accent-color: var(--highlight); cursor: pointer; }
+  .blue-slider { accent-color: var(--blue); cursor: pointer; }
+  .muted-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.4; margin: 0; }
+
+  .math-box { background: var(--surface2); border: 1px solid var(--border); border-left: 3px solid var(--accent); padding: 1.5rem; border-radius: 6px; }
+  .math-title { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 0.75rem; }
+  .math-eq { font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; color: var(--text); font-weight: 600; margin-bottom: 0.5rem; }
+  .math-res { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--accent); }
+
+  .rope-viz { flex: 1; max-width: 400px; background: var(--bg); border: 1px dashed var(--border); border-radius: 12px; padding: 2rem; display: flex; justify-content: center; align-items: center; }
+  .circle-svg { width: 100%; max-width: 300px; overflow: visible; }
+  .svg-label { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 </style>
