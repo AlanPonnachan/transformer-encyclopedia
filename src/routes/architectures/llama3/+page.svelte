@@ -7,11 +7,12 @@
   import { onMount } from 'svelte';
 
   const configs = {
-    '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: 8192 },
-    '70B': { dim: 8192, n_layers: 80, n_heads: 64, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '28,672', ctx: 8192 }
+    '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: '8k' },
+    '70B': { dim: 8192, n_layers: 80, n_heads: 64, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '28,672', ctx: '8k' }
   };
   let activeConfig: '8B' | '70B' = '8B';
   $: c = configs[activeConfig];
+  $: headDim = c.dim / c.n_heads;
 
   // --- MACRO STATE (HUD & X-Ray) ---
   let hoveredNode: string | null = null;
@@ -32,7 +33,6 @@
   // --- ROPE MICRO VIEW STATE ---
   let ropePos = 1;
   let ropeFeatIdx = 0; 
-  const headDim = 128; 
   const thetaBase = 500000; 
   $: theta_i = Math.pow(thetaBase, -(ropeFeatIdx / headDim));
   $: angleRad = ropePos * theta_i;
@@ -86,14 +86,13 @@
   <!-- ==========================================
        CARD 1: MACRO DATA FLOW (TELEMETRY HUD)
        ========================================== -->
-  <BlueprintCard id="llama3-macro" title="Macro View" subtitle="Hover over the components. Notice how the wires light up to indicate data flow direction.">
+  <BlueprintCard id="llama3-macro" title="Macro View" subtitle="Hover over the components to intercept the telemetry. The dashboard will follow you as you scroll.">
     
     <div class="macro-layout">
       
       <!-- LEFT COLUMN: The Diagram (Zoomed out with precise pixel math) -->
       <div class="macro-diagram">
         <svg viewBox="0 0 700 800" preserveAspectRatio="xMidYMid meet">
-          <!-- Arrow Markers adjusted (refX=8) so they never overlap borders -->
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 2 L 8 5 L 0 8 z" fill="var(--muted)" /></marker>
             <marker id="arrow-active" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 2 L 8 5 L 0 8 z" fill="var(--accent)" /></marker>
@@ -103,47 +102,26 @@
           <path d="M 125 580 C 80 580, 80 370, 50 370 C 80 370, 80 160, 125 160" fill="none" stroke="var(--border)" stroke-width="2" />
           <text x="40" y="370" text-anchor="end" dominant-baseline="middle" class="bold-text" fill="var(--text)" font-size="24">{c.n_layers} ×</text>
           
-          <!-- Transformer Block Background -->
           <rect x="140" y="160" width="420" height="420" rx="16" fill="var(--surface2)" stroke="var(--border)" stroke-width="1.5" />
 
           <!-- BASE WIRES (Pixel-perfect coordinates to avoid collisions) -->
           <g class="wires" stroke="var(--muted)" stroke-width="2">
-            <!-- Input to Tokens -->
             <line x1="350" y1="800" x2="350" y2="750" marker-end="url(#arrow)" />
-            <!-- Tokens to Embed -->
             <line x1="350" y1="720" x2="350" y2="680" marker-end="url(#arrow)" class:active-wire={inEmbed} />
-            <!-- Embed to Block -->
             <line x1="350" y1="640" x2="350" y2="530" marker-end="url(#arrow)" class:active-wire={inEmbed || inNorm1} />
-            
-            <!-- Norm1 to Attn -->
             <line x1="350" y1="500" x2="350" y2="465" marker-end="url(#arrow)" class:active-wire={inNorm1 || inAttn} />
-            <!-- RoPE to Attn -->
             <line x1="220" y1="447.5" x2="250" y2="447.5" marker-end="url(#arrow)" class:active-wire={inRope || inAttn} />
-            <!-- Attn to Add 1 -->
             <line x1="350" y1="430" x2="350" y2="394" marker-end="url(#arrow)" class:active-wire={inAttn} />
-            
-            <!-- Residual 1 (Splits exactly halfway between Embed and Norm1) -->
             <path d="M 350 550 L 510 550 L 510 380 L 364 380" fill="none" marker-end="url(#arrow)" class:active-wire={inNorm1 || inAttn} />
-            
-            <!-- Add 1 to Norm 2 -->
             <line x1="350" y1="366" x2="350" y2="340" marker-end="url(#arrow)" class:active-wire={inNorm2} />
-            <!-- Norm 2 to FFN -->
             <line x1="350" y1="310" x2="350" y2="270" marker-end="url(#arrow)" class:active-wire={inNorm2 || inFFN} />
-            <!-- FFN to Add 2 -->
             <line x1="350" y1="230" x2="350" y2="204" marker-end="url(#arrow)" class:active-wire={inFFN} />
-            
-            <!-- Residual 2 (Splits exactly halfway between Add1 and Norm2) -->
             <path d="M 350 355 L 510 355 L 510 190 L 364 190" fill="none" marker-end="url(#arrow)" class:active-wire={inNorm2 || inFFN} />
-
-            <!-- Add 2 to Final Norm -->
             <line x1="350" y1="176" x2="350" y2="130" marker-end="url(#arrow)" class:active-wire={inNorm3} />
-            <!-- Final Norm to Output -->
             <line x1="350" y1="100" x2="350" y2="55" marker-end="url(#arrow)" class:active-wire={inNorm3 || inOut} />
-            <!-- Output to Logits -->
             <line x1="350" y1="20" x2="350" y2="-10" marker-end="url(#arrow)" class:active-wire={inOut} />
           </g>
 
-          <!-- Residual Add Circles -->
           <circle cx="350" cy="380" r="14" fill="var(--surface)" stroke="var(--border)" stroke-width="2" />
           <text x="350" y="382" text-anchor="middle" dominant-baseline="middle" font-size="16" fill="var(--muted)" font-weight="bold">+</text>
           
@@ -205,7 +183,7 @@
         </svg>
       </div>
       
-      <!-- RIGHT COLUMN: Sticky Telemetry HUD -->
+      <!-- RIGHT COLUMN: Deep Spec Telemetry HUD -->
       <div class="macro-hud">
         <div class="telemetry-hud" class:active={hoveredNode}>
           <div class="hud-header">
@@ -215,32 +193,51 @@
           
           <div class="hud-content">
             {#if !hoveredNode}
-              <div class="hud-empty">Hover over a node to intercept tensor flow...</div>
+              <div class="hud-empty">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.5rem"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <br/>Hover over a module to intercept exact tensor specifications and PyTorch operations.
+              </div>
             {:else if hoveredNode === 'embed'}
-              <div class="hud-row"><span class="label">MODULE</span><strong class="val">VocabParallelEmbedding</strong></div>
-              <div class="hud-row"><span class="label">INPUT</span><span class="tensor">[bsz, seqlen]</span></div>
-              <div class="hud-row"><span class="label">OUTPUT</span><span class="tensor">[bsz, seqlen, {c.dim}]</span></div>
+              <div class="data-group"><span class="lbl">MODULE</span><strong class="val">VocabParallelEmbedding</strong></div>
+              <div class="data-group"><span class="lbl">SHAPE (IN → OUT)</span><span class="tensor">[bsz, seq] → [bsz, seq, {c.dim}]</span></div>
+              <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">{c.vocab_size} × {c.dim}</span></div>
+              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Weights are untied from the output layer. Parallelized across GPUs to handle large {c.vocab_size} vocabulary.</span></div>
               <div class="hud-math">out = tokens @ W_e</div>
+            
             {:else if hoveredNode === 'norm1' || hoveredNode === 'norm2' || hoveredNode === 'norm3'}
-              <div class="hud-row"><span class="label">MODULE</span><strong class="val">RMSNorm</strong></div>
-              <div class="hud-row"><span class="label">SHAPE</span><span class="tensor">[bsz, seqlen, {c.dim}]</span></div>
-              <div class="hud-math">x / √E[x²] * weight</div>
+              <div class="data-group"><span class="lbl">MODULE</span><strong class="val">RMSNorm</strong></div>
+              <div class="data-group"><span class="lbl">SHAPE (IN & OUT)</span><span class="tensor">[bsz, seq, {c.dim}]</span></div>
+              <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">{c.dim}</span></div>
+              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Llama 3 uses <code>eps = 1e-5</code>. No mean-centering is applied, saving compute.</span></div>
+              <div class="hud-math">out = x / √E[x²] * weight</div>
+            
             {:else if hoveredNode === 'attn'}
-              <div class="hud-row"><span class="label">MODULE</span><strong class="val">Grouped Query Attn</strong></div>
-              <div class="hud-row"><span class="label">Q SHAPE</span><span class="tensor">[bsz, seq, {c.n_heads}, {headDim}]</span></div>
-              <div class="hud-row"><span class="label">KV SHAPE</span><span class="tensor">[bsz, seq, {c.n_kv_heads}, {headDim}]</span></div>
+              <div class="data-group"><span class="lbl">MODULE</span><strong class="val">Grouped-Query Attention</strong></div>
+              <div class="data-group"><span class="lbl">Q SHAPE</span><span class="tensor">[bsz, seq, {c.n_heads}, {headDim}]</span></div>
+              <div class="data-group"><span class="lbl">K, V SHAPE</span><span class="tensor">[bsz, seq, {c.n_kv_heads}, {headDim}]</span></div>
+              <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">W_q, W_k, W_v, W_o</span></div>
+              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">GQA reduces KV Cache memory overhead by {c.n_heads / c.n_kv_heads}x compared to standard Multi-Head Attention.</span></div>
               <div class="hud-math">Softmax(Q @ K.T) @ V</div>
+            
             {:else if hoveredNode === 'rope'}
-              <div class="hud-row"><span class="label">MODULE</span><strong class="val">RoPE</strong></div>
-              <div class="hud-row"><span class="label">THETA BASE</span><strong class="val">500,000</strong></div>
+              <div class="data-group"><span class="lbl">MODULE</span><strong class="val">Rotary Positional Embeddings</strong></div>
+              <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">0 (Precomputed Matrix)</span></div>
+              <div class="data-group"><span class="lbl">DATA TYPE</span><span class="val note">Operations performed in <code>complex64</code></span></div>
+              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Llama 3 uses a massive <code>theta_base = 500,000</code> to support long {c.ctx} context windows.</span></div>
               <div class="hud-math">xq_, xk_ * freqs_cis</div>
+            
             {:else if hoveredNode === 'ffn'}
-              <div class="hud-row"><span class="label">MODULE</span><strong class="val">SwiGLU FFN</strong></div>
-              <div class="hud-row"><span class="label">EXPANSION</span><span class="tensor">{c.dim} → {c.ffn_hidden}</span></div>
+              <div class="data-group"><span class="lbl">MODULE</span><strong class="val">SwiGLU Feed-Forward</strong></div>
+              <div class="data-group"><span class="lbl">DIM EXPANSION</span><span class="tensor">{c.dim} → {c.ffn_hidden} → {c.dim}</span></div>
+              <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">3 × ({c.dim} × {c.ffn_hidden})</span></div>
+              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Hidden dimension is scaled up, then forced to be a multiple of 256 for optimal GPU tile layout.</span></div>
               <div class="hud-math">w2(SiLU(w1(x)) * w3(x))</div>
+            
             {:else if hoveredNode === 'output'}
-              <div class="hud-row"><span class="label">MODULE</span><strong class="val">Linear (lm_head)</strong></div>
-              <div class="hud-row"><span class="label">SHAPE</span><span class="tensor">[bsz, seq, {c.vocab_size}]</span></div>
+              <div class="data-group"><span class="lbl">MODULE</span><strong class="val">Linear (lm_head)</strong></div>
+              <div class="data-group"><span class="lbl">SHAPE (IN → OUT)</span><span class="tensor">[bsz, seq, {c.dim}] → [bsz, seq, {c.vocab_size}]</span></div>
+              <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">{c.dim} × {c.vocab_size}</span></div>
+              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Maps the continuous hidden state back into probabilities over the {c.vocab_size} discrete vocabulary tokens.</span></div>
               <div class="hud-math">logits = x @ W_out</div>
             {/if}
           </div>
@@ -425,38 +422,42 @@
   /* ================== MACRO & HUD (Sticky Layout) ================== */
   .macro-layout { 
     display: flex; align-items: flex-start; justify-content: space-between; 
-    gap: 3rem; width: 100%; position: relative;
+    gap: 3rem; width: 100%; position: relative; padding-bottom: 2rem;
   }
   
   .macro-diagram { flex: 1; display: flex; justify-content: center; }
-  /* Notice the reduced max-width (500px instead of 700px). This effectively "zooms out" the whole SVG. */
   .macro-diagram svg { width: 100%; max-width: 500px; height: auto; overflow: visible; }
   
   .macro-hud { 
-    position: sticky; top: 100px; 
-    width: 340px; flex-shrink: 0; 
+    /* FLawless Floating logic: It sticks 80px below the viewport top, and flex-start ensures it doesn't stretch */
+    position: sticky; top: 80px; align-self: flex-start;
+    width: 380px; flex-shrink: 0; z-index: 50;
   }
   
   .telemetry-hud { 
-    width: 100%; background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.1); transition: border-color 0.3s;
+    width: 100%; background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15); transition: border-color 0.3s, box-shadow 0.3s;
   }
-  .telemetry-hud.active { border-color: var(--accent); box-shadow: 0 10px 40px rgba(99,102,241,0.15); }
+  .telemetry-hud.active { border-color: var(--accent); box-shadow: 0 20px 50px rgba(99,102,241,0.2); }
   
-  .hud-header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .hud-header { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.5rem; background: var(--surface2); border-bottom: 1px solid var(--border); }
   .hud-title { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; color: var(--text); letter-spacing: 0.1em; }
-  .hud-status { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: rgba(99,102,241,0.1); color: var(--accent); }
+  .hud-status { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; background: rgba(99,102,241,0.15); color: var(--accent); font-weight: 600; }
   .telemetry-hud:not(.active) .hud-status { background: var(--bg); color: var(--muted); }
   
-  .hud-content { padding: 1.5rem 1.25rem; min-height: 160px; display: flex; flex-direction: column; gap: 0.85rem; }
-  .hud-empty { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--muted); font-style: italic; text-align: center; margin: auto; }
+  .hud-content { padding: 1.5rem; min-height: 250px; display: flex; flex-direction: column; gap: 1.2rem; }
+  .hud-empty { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--muted); font-style: italic; text-align: center; margin: auto; opacity: 0.7; }
   
-  .hud-row { display: flex; justify-content: space-between; align-items: center; }
-  .hud-row .label { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); }
-  .hud-row .val { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text); }
-  .hud-row .tensor { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); font-weight: 600; }
-  .hud-math { margin-top: 0.75rem; padding-top: 1rem; border-top: 1px dashed var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--highlight); text-align: center; }
+  /* Telemetry Data Groups */
+  .data-group { display: flex; flex-direction: column; gap: 4px; }
+  .data-group .lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
+  .data-group .val { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text); }
+  .data-group .val.param { font-family: 'JetBrains Mono', monospace; color: var(--blue); font-size: 0.85rem; }
+  .data-group .val.note { font-family: 'Space Grotesk', sans-serif; font-weight: 400; font-size: 0.85rem; color: var(--text); opacity: 0.85; line-height: 1.4; }
+  .data-group .tensor { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); font-weight: 700; }
+  
+  .hud-math { margin-top: auto; padding-top: 1rem; border-top: 1px dashed var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 600; color: var(--highlight); text-align: center; }
 
   /* SVG Interactions & Animations */
   .active-wire { stroke: var(--accent) !important; stroke-width: 3 !important; stroke-dasharray: 6,4; animation: march 1s linear infinite; }
@@ -467,10 +468,9 @@
 
   .interactive-node { cursor: pointer; transition: opacity 0.3s; }
   .interactive-node rect { fill: var(--surface); stroke: var(--border); stroke-width: 2; transition: all 0.2s; }
-  /* Increased font size since SVG is scaled down */
   .interactive-node text { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; fill: var(--text); pointer-events: none; transition: fill 0.2s; }
   
-  .interactive-node:hover rect, .interactive-node.hovered rect { stroke: var(--accent); fill: rgba(99, 102, 241, 0.1); }
+  .interactive-node:hover rect, .interactive-node.hovered rect { stroke: var(--accent); fill: rgba(99, 102, 241, 0.08); }
   .interactive-node:hover text, .interactive-node.hovered text { fill: var(--accent); }
 
   /* ================== MICRO VIEWS ================== */
