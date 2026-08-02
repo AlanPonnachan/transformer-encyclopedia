@@ -38,12 +38,13 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 4px; /* Sharp corners for technical look */
     padding: 3rem; display: flex; flex-direction: column;
-    overflow: hidden;
+    /* overflow: hidden;  <-- REMOVED THIS SO STICKY HUD CAN WORK */
   }
   
   /* The Signature Blueprint Grid Background */
   .card-grid-bg {
     position: absolute; inset: 0; pointer-events: none; opacity: 0.3;
+    border-radius: inherit; /* <-- ADDED THIS to keep grid inside the border radius */
     background-size: 30px 30px;
     background-image: 
       linear-gradient(to right, var(--border) 1px, transparent 1px),

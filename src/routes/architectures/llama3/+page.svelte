@@ -23,12 +23,76 @@
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // --- EMBEDDING MICRO VIEW STATE ---
-  const visualVocabSize = 10;
-  const visualDim = 8;
-  const seqLen = 4;
-  let inputTokens = [2, 7, 0, 9]; 
-  let activeTokenIdx: number | null = null;
+  // --- TOKEN EMBEDDING DEEP DIVE STATE ---
+  let promptText = "Llama 3 rules";
+  const presets = ["Llama 3 rules", "Hello World", "AI is magic"];
+
+  function simpleHash(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return (Math.abs(hash) % 120000) + 1000;
+  }
+
+  $: tokens = (() => {
+    if (promptText === "Llama 3 rules") {
+      return [
+        { text: "Llama", id: 3124 },
+        { text: " 3", id: 220 },
+        { text: " rules", id: 9154 }
+      ];
+    } else if (promptText === "Hello World") {
+      return [
+        { text: "Hello", id: 9906 },
+        { text: " World", id: 4435 }
+      ];
+    } else if (promptText === "AI is magic") {
+      return [
+        { text: "AI", id: 15592 },
+        { text: " is", id: 374 },
+        { text: " magic", id: 11456 }
+      ];
+    } else {
+      const words = promptText.trim().split(/\s+/).filter(Boolean);
+      if (words.length === 0) return [{ text: "...", id: 0 }];
+      return words.map(w => ({ text: w, id: simpleHash(w) }));
+    }
+  })();
+
+  let activeTokenIdx = 0;
+  $: if (activeTokenIdx >= tokens.length) activeTokenIdx = 0;
+  $: activeToken = tokens[activeTokenIdx] || tokens[0];
+
+  function tokenVector(id: number): number[] {
+    const vec: number[] = [];
+    let seed = id;
+    for (let i = 0; i < 8; i++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      vec.push(Number(((seed / 233280) * 2 - 1).toFixed(2)));
+    }
+    return vec;
+  }
+
+  $: activeVector = tokenVector(activeToken.id);
+  let hoveredDimIdx: number | null = null;
+
+  // Word Comparison Feature
+  let compareWord: 'Llama' | 'Alpaca' | 'Car' = 'Llama';
+  const wordVectors = {
+    'Llama':  [0.82, -0.45, 0.91, -0.12, 0.65, -0.88, 0.34, 0.77],
+    'Alpaca': [0.79, -0.48, 0.88, -0.10, 0.61, -0.85, 0.31, 0.74],
+    'Car':    [-0.62, 0.81, -0.33, 0.92, -0.71, 0.15, -0.84, -0.29]
+  };
+
+  function heatBg(val: number) {
+    const norm = (val + 1) / 2;
+    const r = Math.round(99 + (249 - 99) * norm);
+    const g = Math.round(102 * (1 - norm));
+    const b = Math.round(241 * (1 - norm) + 115 * norm);
+    return `rgb(${r},${g},${b})`;
+  }
 
   // --- ROPE MICRO VIEW STATE ---
   let ropePos = 1;
@@ -41,17 +105,15 @@
 
   // --- SWIGLU FFN MICRO VIEW STATE ---
   let swigluInput = [0.5, -0.2, 0.8, -0.9];
-  let w1_val = [1.2, -0.5, 0.3, 0.8, -1.1, 0.4, 0.7, -0.2]; // Expanded hidden_dim
+  let w1_val = [1.2, -0.5, 0.3, 0.8, -1.1, 0.4, 0.7, -0.2];
   let w3_val = [0.9, 0.1, -0.4, 0.7, 0.6, -0.8, 1.0, 0.2];
   
   function silu(x: number) { return x / (1 + Math.exp(-x)); }
-  
   $: gate_silu = w1_val.map(v => silu(v));
   $: ffn_multiplied = gate_silu.map((v, i) => v * w3_val[i]);
   
   onMount(() => inspectedCell.set(null));
 
-  // Reactive helpers for SVG marching ants
   $: inEmbed = hoveredNode === 'embed';
   $: inNorm1 = hoveredNode === 'norm1';
   $: inAttn = hoveredNode === 'attn';
@@ -248,47 +310,156 @@
   </BlueprintCard>
 
   <!-- ==========================================
-       CARD 2: TOKEN EMBEDDING DEEP DIVE
+       CARD 2: TOKEN EMBEDDING DEEP DIVE (USER-CENTRIC)
        ========================================== -->
   <span id="embed-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title="Layer 0: Token Embedding" subtitle="Discrete words are converted into continuous vectors.">
-    <div class="micro-workspace">
-      <div class="col">
-        <div class="col-title">1. Tokenized Prompt<br/><code>[seqlen={seqLen}]</code></div>
-        <div class="token-tape">
-          {#each inputTokens as tok, i}
-            <!-- svelte-ignore a11y-no-static-element-interactions -->
-            <div class="token-cell" 
-                 class:active={activeTokenIdx === i}
-                 on:mouseenter={() => activeTokenIdx = i}
-                 on:mouseleave={() => activeTokenIdx = null}>
-              <span class="lbl">Seq[{i}]</span>
-              <span class="val">ID: {tok}</span>
-            </div>
+  <InteractiveCard title="Layer 0: Token Embedding" subtitle="How an LLM turns human words into continuous mathematical meaning.">
+    <div class="embed-interactive-wrapper">
+      
+      <!-- INPUT PLAYGROUND -->
+      <div class="prompt-bar">
+        <span class="prompt-label">Interactive Prompt:</span>
+        <input type="text" bind:value={promptText} placeholder="Type a sentence..." class="prompt-input" />
+        <div class="preset-chips">
+          {#each presets as p}
+            <button class="chip" class:chip-active={promptText === p} on:click={() => promptText = p}>{p}</button>
           {/each}
         </div>
       </div>
-      <div class="col">
-        <div class="col-title">2. Embedding Matrix<br/><code>[vocab_size={c.vocab_size}, dim={c.dim}]</code></div>
-        <div class="matrix-viz">
-          <Matrix id="embed_weight" rows={visualVocabSize} cols={visualDim} cellSize={22} colorMode="signed" />
-          {#if activeTokenIdx !== null}
-            {@const tokID = inputTokens[activeTokenIdx]}
-            <div class="row-highlight" style="top: {tokID * 22 + 1}px; height: 20px; width: {visualDim * 22 - 2}px;"></div>
-          {/if}
+
+      <!-- 3-STEP VISUAL PIPELINE -->
+      <div class="embed-pipeline">
+        
+        <!-- STEP 1: TOKEN TAPE -->
+        <div class="pipe-card">
+          <div class="step-badge">STEP 1</div>
+          <h3>1. Words ➔ Token IDs</h3>
+          <p class="pipe-desc">The tokenizer breaks text into tokens and assigns a unique dictionary number to each.</p>
+          
+          <div class="tokens-flex">
+            {#each tokens as tok, i}
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <div 
+                class="token-flipper" 
+                class:selected-tok={activeTokenIdx === i}
+                on:click={() => activeTokenIdx = i}
+              >
+                <div class="tok-front">
+                  <span class="tok-text">"{tok.text}"</span>
+                  <span class="tok-sub">Click to inspect</span>
+                </div>
+                <div class="tok-back">
+                  <span class="tok-id">ID: {tok.id}</span>
+                </div>
+              </div>
+            {/each}
+          </div>
         </div>
-      </div>
-      <div class="col">
-        <div class="col-title">3. Hidden State<br/><code>[seqlen={seqLen}, dim={c.dim}]</code></div>
-        <div class="tensor-stack">
-          {#each inputTokens as tok, i}
-            <div class="extracted-vec" class:active-vec={activeTokenIdx === i}>
-               <Vector length={visualDim} direction="horizontal" cellSize={22} />
+
+        <!-- ARROW -->
+        <div class="pipe-arrow">➔</div>
+
+        <!-- STEP 2: MATRIX LOOKUP -->
+        <div class="pipe-card">
+          <div class="step-badge">STEP 2</div>
+          <h3>2. Dictionary Table Lookup</h3>
+          <p class="pipe-desc">The ID acts as an exact row index in the giant 128,000-row Embedding Table W_e.</p>
+          
+          <div class="dictionary-box">
+            <div class="table-header">
+              <span>Vocabulary Rows ({c.vocab_size})</span>
+              <span>Vector Dim ({c.dim})</span>
             </div>
-          {/each}
+            
+            <div class="dict-rows">
+              <div class="dict-row ghost-row"><span>Row 00000</span><div class="dots-line"></div></div>
+              <div class="dict-row ghost-row"><span>Row {Math.max(0, activeToken.id - 1)}</span><div class="dots-line"></div></div>
+              
+              <!-- ACTIVE ROW WITH LASER SCAN -->
+              <div class="dict-row active-dict-row">
+                <span class="active-row-idx">➔ Row {activeToken.id}</span>
+                <div class="laser-beam"></div>
+                <span class="tok-tag">"{activeToken.text}"</span>
+              </div>
+              
+              <div class="dict-row ghost-row"><span>Row {activeToken.id + 1}</span><div class="dots-line"></div></div>
+              <div class="dict-row ghost-row"><span>Row 127999</span><div class="dots-line"></div></div>
+            </div>
+          </div>
         </div>
+
+        <!-- ARROW -->
+        <div class="pipe-arrow">➔</div>
+
+        <!-- STEP 3: MEANING VECTOR & FEATURE PROBE -->
+        <div class="pipe-card">
+          <div class="step-badge">STEP 3</div>
+          <h3>3. Meaning Vector</h3>
+          <p class="pipe-desc">Extracted continuous 4096-d feature vector for <code>"{activeToken.text}"</code>.</p>
+          
+          <!-- Vector Heatmap Strip -->
+          <div class="heatmap-container">
+            <div class="heatmap-bar">
+              {#each activeVector as val, idx}
+                <!-- svelte-ignore a11y-no-static-element-interactions -->
+                <div 
+                  class="cell-block" 
+                  style="background: {heatBg(val)}"
+                  on:mouseenter={() => hoveredDimIdx = idx}
+                  on:mouseleave={() => hoveredDimIdx = null}
+                ></div>
+              {/each}
+            </div>
+            
+            <!-- Dim Probe Hover Box -->
+            <div class="dim-probe">
+              {#if hoveredDimIdx !== null}
+                <span>Dim [{hoveredDimIdx * 512}]: <strong>{activeVector[hoveredDimIdx]}</strong></span>
+              {:else}
+                <span class="muted-probe">Hover over cells to probe feature values</span>
+              {/if}
+            </div>
+          </div>
+
+          <!-- COMPARISON PROBE ("AHA!" MOMENT) -->
+          <div class="comparison-box">
+            <div class="comp-title">
+              <span>💡 Semantic Distance Probe</span>
+              <span class="sub-probe">Why Embeddings Work</span>
+            </div>
+            <p class="comp-text">Similar concepts produce almost identical vector patterns:</p>
+            
+            <div class="comp-buttons">
+              <button class="comp-btn" class:active-comp={compareWord === 'Llama'} on:click={() => compareWord = 'Llama'}>Llama</button>
+              <button class="comp-btn" class:active-comp={compareWord === 'Alpaca'} on:click={() => compareWord = 'Alpaca'}>Alpaca (Animal)</button>
+              <button class="comp-btn" class:active-comp={compareWord === 'Car'} on:click={() => compareWord = 'Car'}>Car (Vehicle)</button>
+            </div>
+
+            <div class="comp-heatmap">
+              <span class="comp-label">Vector for "{compareWord}":</span>
+              <div class="heatmap-bar mini">
+                {#each wordVectors[compareWord] as val}
+                  <div class="cell-block" style="background: {heatBg(val)}"></div>
+                {/each}
+              </div>
+              
+              <div class="similarity-badge">
+                {#if compareWord === 'Llama'}
+                  <span class="sim-high">Reference Vector</span>
+                {:else if compareWord === 'Alpaca'}
+                  <span class="sim-high">94% Similar to "Llama" (Both are animals)</span>
+                {:else}
+                  <span class="sim-low">-32% Similar to "Llama" (Unrelated)</span>
+                {/if}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
       </div>
+
     </div>
   </InteractiveCard>
 
@@ -419,7 +590,7 @@
   .config-selector span { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
   .config-selector select { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; cursor: pointer; outline: none; }
   
-  /* ================== MACRO & HUD (Sticky Layout) ================== */
+  /* ================== MACRO & HUD ================== */
   .macro-layout { 
     display: flex; align-items: flex-start; justify-content: space-between; 
     gap: 3rem; width: 100%; position: relative; padding-bottom: 2rem;
@@ -429,7 +600,6 @@
   .macro-diagram svg { width: 100%; max-width: 500px; height: auto; overflow: visible; }
   
   .macro-hud { 
-    /* FLawless Floating logic: It sticks 80px below the viewport top, and flex-start ensures it doesn't stretch */
     position: sticky; top: 80px; align-self: flex-start;
     width: 380px; flex-shrink: 0; z-index: 50;
   }
@@ -449,7 +619,6 @@
   .hud-content { padding: 1.5rem; min-height: 250px; display: flex; flex-direction: column; gap: 1.2rem; }
   .hud-empty { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--muted); font-style: italic; text-align: center; margin: auto; opacity: 0.7; }
   
-  /* Telemetry Data Groups */
   .data-group { display: flex; flex-direction: column; gap: 4px; }
   .data-group .lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
   .data-group .val { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text); }
@@ -459,7 +628,6 @@
   
   .hud-math { margin-top: auto; padding-top: 1rem; border-top: 1px dashed var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 600; color: var(--highlight); text-align: center; }
 
-  /* SVG Interactions & Animations */
   .active-wire { stroke: var(--accent) !important; stroke-width: 3 !important; stroke-dasharray: 6,4; animation: march 1s linear infinite; }
   @keyframes march { to { stroke-dashoffset: -20; } }
 
@@ -473,51 +641,91 @@
   .interactive-node:hover rect, .interactive-node.hovered rect { stroke: var(--accent); fill: rgba(99, 102, 241, 0.08); }
   .interactive-node:hover text, .interactive-node.hovered text { fill: var(--accent); }
 
-  /* ================== MICRO VIEWS ================== */
-  .micro-workspace { display: flex; justify-content: center; gap: 4rem; align-items: flex-start; overflow-x: auto; padding: 2rem 0; width: 100%; }
-  .col { display: flex; flex-direction: column; gap: 1.5rem; }
-  .col-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text); text-align: center; }
-  .col-title code { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); display: block; margin-top: 0.4rem; }
-  .token-tape { display: flex; flex-direction: column; gap: 0.5rem; }
-  .token-cell { background: var(--surface); border: 1px solid var(--border); padding: 0.75rem 1.25rem; border-radius: 6px; display: flex; justify-content: space-between; gap: 2rem; cursor: crosshair; transition: all 0.2s; }
-  .token-cell .lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); }
-  .token-cell .val { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text); }
-  .token-cell.active { border-color: var(--highlight); background: rgba(245, 158, 11, 0.1); transform: translateX(5px); }
-  .matrix-viz { position: relative; padding: 1px; background: var(--bg); border-radius: 4px; border: 1px solid var(--border); }
-  .row-highlight { position: absolute; left: 1px; border: 2px solid var(--highlight); background: rgba(245, 158, 11, 0.3); border-radius: 2px; pointer-events: none; z-index: 10; transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-  .tensor-stack { display: flex; flex-direction: column; gap: 2px; background: var(--bg); padding: 2px; border-radius: 4px; border: 1px solid var(--border); }
-  .extracted-vec { transition: all 0.2s; background: var(--surface); border-radius: 2px; }
-  .extracted-vec.active-vec { filter: drop-shadow(0 0 10px var(--highlight)); transform: scale(1.08); z-index: 10; position: relative; }
+  /* ================== TOKEN EMBEDDING (USER CENTRIC) ================== */
+  .embed-interactive-wrapper { display: flex; flex-direction: column; gap: 2.5rem; width: 100%; }
+  
+  /* Prompt Bar */
+  .prompt-bar { display: flex; align-items: center; gap: 1.5rem; background: var(--surface2); padding: 1rem 1.5rem; border: 1px solid var(--border); border-radius: 12px; flex-wrap: wrap; }
+  .prompt-label { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent); }
+  .prompt-input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 1rem; outline: none; }
+  .prompt-input:focus { border-color: var(--accent); }
+  .preset-chips { display: flex; gap: 0.5rem; }
+  .chip { background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: all 0.2s; }
+  .chip:hover { border-color: var(--text); color: var(--text); }
+  .chip-active { border-color: var(--accent); color: var(--accent); background: rgba(99, 102, 241, 0.1); }
+
+  /* Pipeline Layout */
+  .embed-pipeline { display: flex; align-items: stretch; gap: 1.5rem; width: 100%; overflow-x: auto; padding-bottom: 0.5rem; }
+  .pipe-card { flex: 1; min-width: 300px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative; }
+  .step-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 700; color: var(--accent); background: rgba(99, 102, 241, 0.1); padding: 2px 8px; border-radius: 4px; width: fit-content; }
+  .pipe-card h3 { font-size: 1.1rem; font-weight: 700; margin: 0; color: var(--text); }
+  .pipe-desc { font-size: 0.85rem; color: var(--muted); margin: 0; line-height: 1.4; }
+  .pipe-arrow { display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--muted); user-select: none; }
+
+  /* Step 1: Token Cards */
+  .tokens-flex { display: flex; flex-direction: column; gap: 0.75rem; margin-top: auto; }
+  .token-flipper { background: var(--surface); border: 1px solid var(--border); padding: 0.85rem 1.25rem; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
+  .token-flipper:hover { border-color: var(--accent); transform: translateX(4px); }
+  .selected-tok { border-color: var(--highlight) !important; background: rgba(245, 158, 11, 0.08) !important; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15); }
+  .tok-text { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.05rem; color: var(--text); }
+  .tok-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+  .tok-id { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--highlight); font-size: 0.95rem; }
+
+  /* Step 2: Dictionary Table */
+  .dictionary-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; margin-top: auto; }
+  .table-header { display: flex; justify-content: space-between; padding: 0.5rem 1rem; background: var(--surface); font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .dict-rows { display: flex; flex-direction: column; }
+  .dict-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .ghost-row { color: var(--border); opacity: 0.5; }
+  .dots-line { flex: 1; border-bottom: 1px stroke var(--border); margin: 0 1rem; opacity: 0.3; }
+  .active-dict-row { background: rgba(245, 158, 11, 0.15); border-y: 1px solid var(--highlight); color: var(--highlight); font-weight: 700; position: relative; }
+  .laser-beam { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.3), transparent); animation: laser 1.5s ease-in-out infinite; }
+  @keyframes laser { 0% { opacity: 0.2; } 50% { opacity: 0.8; } 100% { opacity: 0.2; } }
+  .tok-tag { background: var(--highlight); color: #000; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
+
+  /* Step 3: Vector & Probe */
+  .heatmap-container { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+  .heatmap-bar { display: flex; gap: 2px; height: 32px; background: var(--bg); padding: 2px; border-radius: 6px; border: 1px solid var(--border); }
+  .heatmap-bar.mini { height: 20px; }
+  .cell-block { flex: 1; border-radius: 2px; cursor: crosshair; transition: transform 0.15s; }
+  .cell-block:hover { transform: scaleY(1.3); z-index: 10; }
+  .dim-probe { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent); min-height: 20px; text-align: center; }
+  .muted-probe { color: var(--muted); font-size: 0.7rem; font-style: italic; }
+
+  /* Comparison Section */
+  .comparison-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .comp-title { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 700; color: var(--text); }
+  .sub-probe { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--accent); text-transform: uppercase; }
+  .comp-text { font-size: 0.8rem; color: var(--muted); margin: 0; line-height: 1.3; }
+  .comp-buttons { display: flex; gap: 0.4rem; }
+  .comp-btn { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.3rem; border-radius: 4px; font-size: 0.75rem; font-family: 'Space Grotesk', sans-serif; cursor: pointer; transition: all 0.2s; }
+  .comp-btn:hover { border-color: var(--accent); }
+  .active-comp { background: var(--accent); color: white; border-color: var(--accent); font-weight: 600; }
+  .comp-heatmap { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; }
+  .comp-label { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+  .similarity-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; text-align: center; margin-top: 0.2rem; }
+  .sim-high { color: var(--green); font-weight: 700; }
+  .sim-low { color: var(--red); font-weight: 700; }
 
   /* ================== SWIGLU FFN ================== */
   .ffn-workspace { display: flex; gap: 4rem; align-items: center; justify-content: center; padding: 2rem; width: 100%; }
-  
   .pipeline { display: flex; align-items: center; gap: 1rem; }
   .step { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
   .step-label { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); text-align: center; }
-  
   .gate-step { display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1rem; background: var(--surface2); border: 1px dashed var(--border); border-radius: 12px; }
   .gate-branch { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
   .gate-op { font-size: 1.5rem; color: var(--accent); font-weight: 300; margin-top: 1.5rem; }
-  
-  .inspector-panel { 
-    flex: 1; max-width: 400px; min-height: 250px; background: var(--surface2); 
-    border: 1px solid var(--border); border-radius: 12px; padding: 2rem; 
-    display: flex; flex-direction: column; justify-content: center; 
-  }
+  .inspector-panel { flex: 1; max-width: 400px; min-height: 250px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; display: flex; flex-direction: column; justify-content: center; }
   .inspector-panel h4 { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); margin: 0 0 1.5rem 0; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-  
   .math-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
   .math-row span { font-family: 'JetBrains Mono', monospace; color: var(--muted); font-size: 0.9rem; }
   .math-row.multiply { padding-left: 2rem; }
   .math-row.result { padding-left: 2rem; border-top: 1px dashed var(--border); padding-top: 1rem; }
-  
   .var { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 6px; }
   .var.hl { border-color: var(--highlight); background: rgba(245, 158, 11, 0.1); }
   .var.final { border-color: var(--accent); background: rgba(99, 102, 241, 0.1); }
   .var-name { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); margin-bottom: 0.25rem; }
   .var-val { font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; color: var(--text); font-weight: 600; }
-  
   .empty-inspector { display: flex; flex-direction: column; align-items: center; gap: 1rem; color: var(--muted); text-align: center; opacity: 0.6; }
   .empty-inspector p { font-size: 0.9rem; line-height: 1.5; margin: 0; }
 
