@@ -24,46 +24,61 @@
   }
 
   // --- TOKEN EMBEDDING DEEP DIVE STATE ---
-  let promptText = "Llama 3 rules";
-  const presets = ["Llama 3 rules", "Hello World", "AI is magic"];
-
-  function simpleHash(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash |= 0;
+  const presetSentences = [
+    {
+      text: "The wise king and graceful queen ruled the peaceful kingdom.",
+      proofEq: 'vec("woman") - vec("man") ≈ vec("queen") - vec("king")',
+      proofNote: "Gender relationship offsets prove semantic vector arithmetic!",
+      tokens: [
+        { word: "man", id: 582, x: 0.15, y: 0.25 },
+        { word: "woman", id: 2215, x: 0.65, y: 0.35 },
+        { word: "king", id: 3124, x: 0.20, y: 0.70 },
+        { word: "queen", id: 3488, x: 0.70, y: 0.80 },
+        { word: "kingdom", id: 8910, x: 0.45, y: 0.90 }
+      ],
+      relations: [
+        { from: "man", to: "woman" },
+        { from: "king", to: "queen" }
+      ]
+    },
+    {
+      text: "A loyal dog and playful cat rested near the warm fireplace.",
+      proofEq: 'vec("kitten") - vec("cat") ≈ vec("puppy") - vec("dog")',
+      proofNote: "Juvenile relationship offsets prove semantic vector arithmetic!",
+      tokens: [
+        { word: "cat", id: 6812, x: 0.20, y: 0.30 },
+        { word: "kitten", id: 11205, x: 0.65, y: 0.40 },
+        { word: "dog", id: 4102, x: 0.25, y: 0.75 },
+        { word: "puppy", id: 9104, x: 0.70, y: 0.85 }
+      ],
+      relations: [
+        { from: "cat", to: "kitten" },
+        { from: "dog", to: "puppy" }
+      ]
+    },
+    {
+      text: "Fresh apples and ripe oranges were harvested from the sunny orchard.",
+      proofEq: 'vec("orange") - vec("apple") ≈ vec("fruit") - vec("orchard")',
+      proofNote: "Fruit & Nature relationship offsets prove semantic vector arithmetic!",
+      tokens: [
+        { word: "apple", id: 14201, x: 0.20, y: 0.30 },
+        { word: "orange", id: 18320, x: 0.65, y: 0.40 },
+        { word: "orchard", id: 12401, x: 0.25, y: 0.75 },
+        { word: "fruit", id: 5102, x: 0.70, y: 0.85 }
+      ],
+      relations: [
+        { from: "apple", to: "orange" },
+        { from: "orchard", to: "fruit" }
+      ]
     }
-    return (Math.abs(hash) % 120000) + 1000;
-  }
+  ];
 
-  $: tokens = (() => {
-    if (promptText === "Llama 3 rules") {
-      return [
-        { text: "Llama", id: 3124 },
-        { text: " 3", id: 220 },
-        { text: " rules", id: 9154 }
-      ];
-    } else if (promptText === "Hello World") {
-      return [
-        { text: "Hello", id: 9906 },
-        { text: " World", id: 4435 }
-      ];
-    } else if (promptText === "AI is magic") {
-      return [
-        { text: "AI", id: 15592 },
-        { text: " is", id: 374 },
-        { text: " magic", id: 11456 }
-      ];
-    } else {
-      const words = promptText.trim().split(/\s+/).filter(Boolean);
-      if (words.length === 0) return [{ text: "...", id: 0 }];
-      return words.map(w => ({ text: w, id: simpleHash(w) }));
-    }
-  })();
+  let activePresetIdx = 0;
+  $: activePreset = presetSentences[activePresetIdx];
 
   let activeTokenIdx = 0;
-  $: if (activeTokenIdx >= tokens.length) activeTokenIdx = 0;
-  $: activeToken = tokens[activeTokenIdx] || tokens[0];
+  $: if (activeTokenIdx >= activePreset.tokens.length) activeTokenIdx = 0;
+  $: activeToken = activePreset.tokens[activeTokenIdx] || activePreset.tokens[0];
 
   function tokenVector(id: number): number[] {
     const vec: number[] = [];
@@ -77,14 +92,6 @@
 
   $: activeVector = tokenVector(activeToken.id);
   let hoveredDimIdx: number | null = null;
-
-  // Word Comparison Feature
-  let compareWord: 'Llama' | 'Alpaca' | 'Car' = 'Llama';
-  const wordVectors = {
-    'Llama':  [0.82, -0.45, 0.91, -0.12, 0.65, -0.88, 0.34, 0.77],
-    'Alpaca': [0.79, -0.48, 0.88, -0.10, 0.61, -0.85, 0.31, 0.74],
-    'Car':    [-0.62, 0.81, -0.33, 0.92, -0.71, 0.15, -0.84, -0.29]
-  };
 
   function heatBg(val: number) {
     const norm = (val + 1) / 2;
@@ -149,10 +156,8 @@
        CARD 1: MACRO DATA FLOW (TELEMETRY HUD)
        ========================================== -->
   <BlueprintCard id="llama3-macro" title="Macro View" subtitle="Hover over the components to intercept the telemetry. The dashboard will follow you as you scroll.">
-    
     <div class="macro-layout">
-      
-      <!-- LEFT COLUMN: The Diagram (Zoomed out with precise pixel math) -->
+      <!-- LEFT COLUMN: The Diagram -->
       <div class="macro-diagram">
         <svg viewBox="0 0 700 800" preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -166,7 +171,7 @@
           
           <rect x="140" y="160" width="420" height="420" rx="16" fill="var(--surface2)" stroke="var(--border)" stroke-width="1.5" />
 
-          <!-- BASE WIRES (Pixel-perfect coordinates to avoid collisions) -->
+          <!-- BASE WIRES -->
           <g class="wires" stroke="var(--muted)" stroke-width="2">
             <line x1="350" y1="800" x2="350" y2="750" marker-end="url(#arrow)" />
             <line x1="350" y1="720" x2="350" y2="680" marker-end="url(#arrow)" class:active-wire={inEmbed} />
@@ -241,7 +246,6 @@
             <rect x="250" y="20" width="200" height="35" rx="8" />
             <text x="350" y="37.5" text-anchor="middle" dominant-baseline="middle">Linear output layer</text>
           </g>
-
         </svg>
       </div>
       
@@ -310,35 +314,40 @@
   </BlueprintCard>
 
   <!-- ==========================================
-       CARD 2: TOKEN EMBEDDING DEEP DIVE (USER-CENTRIC)
+       CARD 2: TOKEN EMBEDDING DEEP DIVE
        ========================================== -->
   <span id="embed-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
   <InteractiveCard title="Layer 0: Token Embedding" subtitle="How an LLM turns human words into continuous mathematical meaning.">
     <div class="embed-interactive-wrapper">
       
-      <!-- INPUT PLAYGROUND -->
+      <!-- PRESET SENTENCE SELECTOR -->
       <div class="prompt-bar">
-        <span class="prompt-label">Interactive Prompt:</span>
-        <input type="text" bind:value={promptText} placeholder="Type a sentence..." class="prompt-input" />
+        <span class="prompt-label">Select Example Context:</span>
         <div class="preset-chips">
-          {#each presets as p}
-            <button class="chip" class:chip-active={promptText === p} on:click={() => promptText = p}>{p}</button>
+          {#each presetSentences as p, i}
+            <button 
+              class="chip" 
+              class:chip-active={activePresetIdx === i} 
+              on:click={() => { activePresetIdx = i; activeTokenIdx = 0; }}
+            >
+              "{p.text}"
+            </button>
           {/each}
         </div>
       </div>
 
-      <!-- 3-STEP VISUAL PIPELINE -->
+      <!-- 3-STEP PIPELINE -->
       <div class="embed-pipeline">
         
         <!-- STEP 1: TOKEN TAPE -->
         <div class="pipe-card">
           <div class="step-badge">STEP 1</div>
-          <h3>1. Words ➔ Token IDs</h3>
-          <p class="pipe-desc">The tokenizer breaks text into tokens and assigns a unique dictionary number to each.</p>
+          <h3>1. Text ➔ Token IDs</h3>
+          <p class="pipe-desc">The tokenizer splits context into words and maps each to a vocabulary ID.</p>
           
           <div class="tokens-flex">
-            {#each tokens as tok, i}
+            {#each activePreset.tokens as tok, i}
               <!-- svelte-ignore a11y-no-static-element-interactions -->
               <div 
                 class="token-flipper" 
@@ -346,7 +355,7 @@
                 on:click={() => activeTokenIdx = i}
               >
                 <div class="tok-front">
-                  <span class="tok-text">"{tok.text}"</span>
+                  <span class="tok-text">"{tok.word}"</span>
                   <span class="tok-sub">Click to inspect</span>
                 </div>
                 <div class="tok-back">
@@ -357,102 +366,116 @@
           </div>
         </div>
 
-        <!-- ARROW -->
         <div class="pipe-arrow">➔</div>
 
-        <!-- STEP 2: MATRIX LOOKUP -->
+        <!-- STEP 2: 2D MATRIX GRID LOOKUP -->
         <div class="pipe-card">
           <div class="step-badge">STEP 2</div>
-          <h3>2. Dictionary Table Lookup</h3>
-          <p class="pipe-desc">The ID acts as an exact row index in the giant 128,000-row Embedding Table W_e.</p>
+          <h3>2. Weight Matrix W<sub>e</sub> Lookup</h3>
+          <p class="pipe-desc">Row <code>{activeToken.id}</code> is retrieved from the 128,000 × {c.dim} table.</p>
           
-          <div class="dictionary-box">
-            <div class="table-header">
-              <span>Vocabulary Rows ({c.vocab_size})</span>
-              <span>Vector Dim ({c.dim})</span>
+          <div class="matrix-grid-visual">
+            <div class="grid-col-headers">
+              <span class="idx-lbl">Index</span>
+              <span>d0</span>
+              <span>d512</span>
+              <span>d1k</span>
+              <span>d2k</span>
+              <span>d3k</span>
+              <span>d4k</span>
             </div>
             
-            <div class="dict-rows">
-              <div class="dict-row ghost-row"><span>Row 00000</span><div class="dots-line"></div></div>
-              <div class="dict-row ghost-row"><span>Row {Math.max(0, activeToken.id - 1)}</span><div class="dots-line"></div></div>
-              
-              <!-- ACTIVE ROW WITH LASER SCAN -->
-              <div class="dict-row active-dict-row">
-                <span class="active-row-idx">➔ Row {activeToken.id}</span>
-                <div class="laser-beam"></div>
-                <span class="tok-tag">"{activeToken.text}"</span>
+            <div class="grid-rows-stack">
+              <div class="grid-row ghost">
+                <span class="row-tag">Row 00000</span>
+                <div class="row-cells"><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div></div>
+              </div>
+              <div class="grid-row ghost">
+                <span class="row-tag">Row {Math.max(0, activeToken.id - 1)}</span>
+                <div class="row-cells"><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div></div>
               </div>
               
-              <div class="dict-row ghost-row"><span>Row {activeToken.id + 1}</span><div class="dots-line"></div></div>
-              <div class="dict-row ghost-row"><span>Row 127999</span><div class="dots-line"></div></div>
+              <!-- ACTIVE ROW WITH LASER SCAN -->
+              <div class="grid-row active-row">
+                <span class="row-tag active-tag">Row {activeToken.id}</span>
+                <div class="row-cells active-cells">
+                  <div class="laser-beam"></div>
+                  {#each activeVector.slice(0, 6) as v}
+                    <div class="c active-c" style="background: {heatBg(v)}"></div>
+                  {/each}
+                </div>
+              </div>
+              
+              <div class="grid-row ghost">
+                <span class="row-tag">Row {activeToken.id + 1}</span>
+                <div class="row-cells"><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div></div>
+              </div>
+              <div class="grid-row ghost">
+                <span class="row-tag">Row 127999</span>
+                <div class="row-cells"><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div></div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- ARROW -->
         <div class="pipe-arrow">➔</div>
 
-        <!-- STEP 3: MEANING VECTOR & FEATURE PROBE -->
+        <!-- STEP 3: 2D VECTOR SPACE SCATTER PLOT -->
         <div class="pipe-card">
           <div class="step-badge">STEP 3</div>
-          <h3>3. Meaning Vector</h3>
-          <p class="pipe-desc">Extracted continuous 4096-d feature vector for <code>"{activeToken.text}"</code>.</p>
+          <h3>3. Vector Arithmetic Space</h3>
+          <p class="pipe-desc">Embedding space clusters similar meanings and preserves relational offsets.</p>
           
-          <!-- Vector Heatmap Strip -->
-          <div class="heatmap-container">
-            <div class="heatmap-bar">
-              {#each activeVector as val, idx}
-                <!-- svelte-ignore a11y-no-static-element-interactions -->
-                <div 
-                  class="cell-block" 
-                  style="background: {heatBg(val)}"
-                  on:mouseenter={() => hoveredDimIdx = idx}
-                  on:mouseleave={() => hoveredDimIdx = null}
-                ></div>
-              {/each}
-            </div>
-            
-            <!-- Dim Probe Hover Box -->
-            <div class="dim-probe">
-              {#if hoveredDimIdx !== null}
-                <span>Dim [{hoveredDimIdx * 512}]: <strong>{activeVector[hoveredDimIdx]}</strong></span>
-              {:else}
-                <span class="muted-probe">Hover over cells to probe feature values</span>
-              {/if}
-            </div>
-          </div>
-
-          <!-- COMPARISON PROBE ("AHA!" MOMENT) -->
-          <div class="comparison-box">
-            <div class="comp-title">
-              <span>💡 Semantic Distance Probe</span>
-              <span class="sub-probe">Why Embeddings Work</span>
-            </div>
-            <p class="comp-text">Similar concepts produce almost identical vector patterns:</p>
-            
-            <div class="comp-buttons">
-              <button class="comp-btn" class:active-comp={compareWord === 'Llama'} on:click={() => compareWord = 'Llama'}>Llama</button>
-              <button class="comp-btn" class:active-comp={compareWord === 'Alpaca'} on:click={() => compareWord = 'Alpaca'}>Alpaca (Animal)</button>
-              <button class="comp-btn" class:active-comp={compareWord === 'Car'} on:click={() => compareWord = 'Car'}>Car (Vehicle)</button>
-            </div>
-
-            <div class="comp-heatmap">
-              <span class="comp-label">Vector for "{compareWord}":</span>
-              <div class="heatmap-bar mini">
-                {#each wordVectors[compareWord] as val}
-                  <div class="cell-block" style="background: {heatBg(val)}"></div>
-                {/each}
-              </div>
+          <div class="vector-space-plot">
+            <svg viewBox="0 0 300 240" class="plot-svg">
+              <!-- Grid lines -->
+              <line x1="30" y1="20" x2="30" y2="200" stroke="var(--border)" stroke-width="1.5"/>
+              <line x1="30" y1="200" x2="280" y2="200" stroke="var(--border)" stroke-width="1.5"/>
               
-              <div class="similarity-badge">
-                {#if compareWord === 'Llama'}
-                  <span class="sim-high">Reference Vector</span>
-                {:else if compareWord === 'Alpaca'}
-                  <span class="sim-high">94% Similar to "Llama" (Both are animals)</span>
-                {:else}
-                  <span class="sim-low">-32% Similar to "Llama" (Unrelated)</span>
+              <!-- Axis labels -->
+              <text x="25" y="18" text-anchor="end" class="axis-lbl">1.0</text>
+              <text x="25" y="204" text-anchor="end" class="axis-lbl">0.0</text>
+              <text x="280" y="218" text-anchor="middle" class="axis-lbl">1.0</text>
+              
+              <!-- Relationship Offset Arrows -->
+              {#each activePreset.relations as rel}
+                {@const fromTok = activePreset.tokens.find(t => t.word === rel.from)}
+                {@const toTok = activePreset.tokens.find(t => t.word === rel.to)}
+                {#if fromTok && toTok}
+                  {@const x1 = 30 + fromTok.x * 240}
+                  {@const y1 = 200 - fromTok.y * 180}
+                  {@const x2 = 30 + toTok.x * 240}
+                  {@const y2 = 200 - toTok.y * 180}
+                  <line {x1} {y1} {x2} {y2} stroke="var(--highlight)" stroke-width="2" marker-end="url(#arrow-active)" />
                 {/if}
-              </div>
+              {/each}
+
+              <!-- Token Scatter Points -->
+              {#each activePreset.tokens as tok}
+                {@const cx = 30 + tok.x * 240}
+                {@const cy = 200 - tok.y * 180}
+                {@const isSelected = tok.word === activeToken.word}
+                
+                <g class="point-group" class:is-active-point={isSelected}>
+                  <circle {cx} {cy} r={isSelected ? 6 : 4} fill={isSelected ? 'var(--accent)' : 'var(--muted)'} />
+                  <text 
+                    x={cx + 8} 
+                    y={cy - 4} 
+                    fill={isSelected ? 'var(--accent)' : 'var(--text)'} 
+                    class="point-lbl" 
+                    font-weight={isSelected ? '700' : '500'}
+                    dominant-baseline="middle"
+                  >
+                    {tok.word}
+                  </text>
+                </g>
+              {/each}
+            </svg>
+
+            <!-- Dynamic Arithmetic Proof Callout -->
+            <div class="proof-callout">
+              <span class="proof-eq">{activePreset.proofEq}</span>
+              <span class="proof-note">{activePreset.proofNote}</span>
             </div>
           </div>
 
@@ -591,41 +614,24 @@
   .config-selector select { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; cursor: pointer; outline: none; }
   
   /* ================== MACRO & HUD ================== */
-  .macro-layout { 
-    display: flex; align-items: flex-start; justify-content: space-between; 
-    gap: 3rem; width: 100%; position: relative; padding-bottom: 2rem;
-  }
-  
+  .macro-layout { display: flex; align-items: flex-start; justify-content: space-between; gap: 3rem; width: 100%; position: relative; padding-bottom: 2rem; }
   .macro-diagram { flex: 1; display: flex; justify-content: center; }
   .macro-diagram svg { width: 100%; max-width: 500px; height: auto; overflow: visible; }
-  
-  .macro-hud { 
-    position: sticky; top: 80px; align-self: flex-start;
-    width: 380px; flex-shrink: 0; z-index: 50;
-  }
-  
-  .telemetry-hud { 
-    width: 100%; background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.15); transition: border-color 0.3s, box-shadow 0.3s;
-  }
+  .macro-hud { position: sticky; top: 80px; align-self: flex-start; width: 380px; flex-shrink: 0; z-index: 50; }
+  .telemetry-hud { width: 100%; background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.15); transition: border-color 0.3s, box-shadow 0.3s; }
   .telemetry-hud.active { border-color: var(--accent); box-shadow: 0 20px 50px rgba(99,102,241,0.2); }
-  
   .hud-header { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.5rem; background: var(--surface2); border-bottom: 1px solid var(--border); }
   .hud-title { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; color: var(--text); letter-spacing: 0.1em; }
   .hud-status { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; background: rgba(99,102,241,0.15); color: var(--accent); font-weight: 600; }
   .telemetry-hud:not(.active) .hud-status { background: var(--bg); color: var(--muted); }
-  
   .hud-content { padding: 1.5rem; min-height: 250px; display: flex; flex-direction: column; gap: 1.2rem; }
   .hud-empty { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--muted); font-style: italic; text-align: center; margin: auto; opacity: 0.7; }
-  
   .data-group { display: flex; flex-direction: column; gap: 4px; }
   .data-group .lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
   .data-group .val { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text); }
   .data-group .val.param { font-family: 'JetBrains Mono', monospace; color: var(--blue); font-size: 0.85rem; }
   .data-group .val.note { font-family: 'Space Grotesk', sans-serif; font-weight: 400; font-size: 0.85rem; color: var(--text); opacity: 0.85; line-height: 1.4; }
   .data-group .tensor { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); font-weight: 700; }
-  
   .hud-math { margin-top: auto; padding-top: 1rem; border-top: 1px dashed var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 600; color: var(--highlight); text-align: center; }
 
   .active-wire { stroke: var(--accent) !important; stroke-width: 3 !important; stroke-dasharray: 6,4; animation: march 1s linear infinite; }
@@ -633,30 +639,25 @@
 
   .small-text { font-family: 'JetBrains Mono', monospace; font-size: 14px; fill: var(--muted); pointer-events: none; }
   .bold-text { font-family: 'Space Grotesk', sans-serif; font-weight: 700; fill: var(--text); pointer-events: none; }
-
   .interactive-node { cursor: pointer; transition: opacity 0.3s; }
   .interactive-node rect { fill: var(--surface); stroke: var(--border); stroke-width: 2; transition: all 0.2s; }
   .interactive-node text { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; fill: var(--text); pointer-events: none; transition: fill 0.2s; }
-  
   .interactive-node:hover rect, .interactive-node.hovered rect { stroke: var(--accent); fill: rgba(99, 102, 241, 0.08); }
   .interactive-node:hover text, .interactive-node.hovered text { fill: var(--accent); }
 
-  /* ================== TOKEN EMBEDDING (USER CENTRIC) ================== */
-  .embed-interactive-wrapper { display: flex; flex-direction: column; gap: 2.5rem; width: 100%; }
+  /* ================== TOKEN EMBEDDING (USER CENTRIC & WIDER) ================== */
+  .embed-interactive-wrapper { display: flex; flex-direction: column; gap: 2rem; width: 100%; }
   
-  /* Prompt Bar */
-  .prompt-bar { display: flex; align-items: center; gap: 1.5rem; background: var(--surface2); padding: 1rem 1.5rem; border: 1px solid var(--border); border-radius: 12px; flex-wrap: wrap; }
+  .prompt-bar { display: flex; align-items: center; gap: 1.5rem; background: var(--surface2); padding: 1rem 1.5rem; border: 1px solid var(--border); border-radius: 12px; }
   .prompt-label { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent); }
-  .prompt-input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 1rem; outline: none; }
-  .prompt-input:focus { border-color: var(--accent); }
-  .preset-chips { display: flex; gap: 0.5rem; }
-  .chip { background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: all 0.2s; }
+  .preset-chips { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .chip { background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 0.4rem 0.85rem; border-radius: 999px; font-size: 0.8rem; font-family: 'Space Grotesk', sans-serif; cursor: pointer; transition: all 0.2s; }
   .chip:hover { border-color: var(--text); color: var(--text); }
-  .chip-active { border-color: var(--accent); color: var(--accent); background: rgba(99, 102, 241, 0.1); }
+  .chip-active { border-color: var(--accent); color: var(--accent); background: rgba(99, 102, 241, 0.1); font-weight: 600; }
 
   /* Pipeline Layout */
-  .embed-pipeline { display: flex; align-items: stretch; gap: 1.5rem; width: 100%; overflow-x: auto; padding-bottom: 0.5rem; }
-  .pipe-card { flex: 1; min-width: 300px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative; }
+  .embed-pipeline { display: flex; align-items: stretch; gap: 1.25rem; width: 100%; overflow-x: auto; padding-bottom: 0.5rem; }
+  .pipe-card { flex: 1; min-width: 320px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
   .step-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 700; color: var(--accent); background: rgba(99, 102, 241, 0.1); padding: 2px 8px; border-radius: 4px; width: fit-content; }
   .pipe-card h3 { font-size: 1.1rem; font-weight: 700; margin: 0; color: var(--text); }
   .pipe-desc { font-size: 0.85rem; color: var(--muted); margin: 0; line-height: 1.4; }
@@ -671,41 +672,35 @@
   .tok-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); }
   .tok-id { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--highlight); font-size: 0.95rem; }
 
-  /* Step 2: Dictionary Table */
-  .dictionary-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; margin-top: auto; }
-  .table-header { display: flex; justify-content: space-between; padding: 0.5rem 1rem; background: var(--surface); font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); border-bottom: 1px solid var(--border); }
-  .dict-rows { display: flex; flex-direction: column; }
-  .dict-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
-  .ghost-row { color: var(--border); opacity: 0.5; }
-  .dots-line { flex: 1; border-bottom: 1px stroke var(--border); margin: 0 1rem; opacity: 0.3; }
-  .active-dict-row { background: rgba(245, 158, 11, 0.15); border-y: 1px solid var(--highlight); color: var(--highlight); font-weight: 700; position: relative; }
-  .laser-beam { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.3), transparent); animation: laser 1.5s ease-in-out infinite; }
+  /* Step 2: 2D Matrix Grid */
+  .matrix-grid-visual { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; margin-top: auto; }
+  .grid-col-headers { display: grid; grid-template-columns: 72px repeat(6, 1fr); gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); align-items: center; }
+  .grid-col-headers span { text-align: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grid-col-headers .idx-lbl { text-align: left; }
+  .grid-rows-stack { display: flex; flex-direction: column; gap: 4px; }
+  .grid-row { display: grid; grid-template-columns: 72px 1fr; gap: 4px; align-items: center; }
+  .row-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--muted); white-space: nowrap; overflow: hidden; }
+  .row-cells { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; height: 22px; }
+  .c { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; }
+  .ghost { opacity: 0.45; }
+  .active-row { background: rgba(245, 158, 11, 0.12); padding: 3px 0; border-radius: 4px; position: relative; }
+  .active-tag { color: var(--highlight); font-weight: 700; }
+  .active-cells { position: relative; }
+  .active-c { border: 1px solid var(--highlight); }
+  .laser-beam { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.4), transparent); animation: laser 1.5s ease-in-out infinite; pointer-events: none; }
   @keyframes laser { 0% { opacity: 0.2; } 50% { opacity: 0.8; } 100% { opacity: 0.2; } }
-  .tok-tag { background: var(--highlight); color: #000; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
 
-  /* Step 3: Vector & Probe */
-  .heatmap-container { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
-  .heatmap-bar { display: flex; gap: 2px; height: 32px; background: var(--bg); padding: 2px; border-radius: 6px; border: 1px solid var(--border); }
-  .heatmap-bar.mini { height: 20px; }
-  .cell-block { flex: 1; border-radius: 2px; cursor: crosshair; transition: transform 0.15s; }
-  .cell-block:hover { transform: scaleY(1.3); z-index: 10; }
-  .dim-probe { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent); min-height: 20px; text-align: center; }
-  .muted-probe { color: var(--muted); font-size: 0.7rem; font-style: italic; }
-
-  /* Comparison Section */
-  .comparison-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
-  .comp-title { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 700; color: var(--text); }
-  .sub-probe { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--accent); text-transform: uppercase; }
-  .comp-text { font-size: 0.8rem; color: var(--muted); margin: 0; line-height: 1.3; }
-  .comp-buttons { display: flex; gap: 0.4rem; }
-  .comp-btn { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.3rem; border-radius: 4px; font-size: 0.75rem; font-family: 'Space Grotesk', sans-serif; cursor: pointer; transition: all 0.2s; }
-  .comp-btn:hover { border-color: var(--accent); }
-  .active-comp { background: var(--accent); color: white; border-color: var(--accent); font-weight: 600; }
-  .comp-heatmap { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; }
-  .comp-label { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); }
-  .similarity-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; text-align: center; margin-top: 0.2rem; }
-  .sim-high { color: var(--green); font-weight: 700; }
-  .sim-low { color: var(--red); font-weight: 700; }
+  /* Step 3: Vector Scatter Plot */
+  .vector-space-plot { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; margin-top: auto; }
+  .plot-svg { width: 100%; height: auto; max-height: 200px; overflow: visible; }
+  .axis-lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: var(--muted); }
+  .point-lbl { font-family: 'Space Grotesk', sans-serif; font-size: 11px; }
+  .point-group { transition: all 0.3s; }
+  .is-active-point circle { filter: drop-shadow(0 0 6px var(--accent)); }
+  
+  .proof-callout { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); padding: 0.5rem 0.75rem; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
+  .proof-eq { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--highlight); font-weight: 700; }
+  .proof-note { font-size: 0.7rem; color: var(--muted); }
 
   /* ================== SWIGLU FFN ================== */
   .ffn-workspace { display: flex; gap: 4rem; align-items: center; justify-content: center; padding: 2rem; width: 100%; }

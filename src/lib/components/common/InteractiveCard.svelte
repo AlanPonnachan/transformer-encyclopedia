@@ -27,7 +27,7 @@
 
 <style>
   .interactive-card {
-    width: 100%; max-width: 1200px; margin: 0 auto 6rem auto;
+    width: 100%; max-width: 1350px; margin: 0 auto 6rem auto;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 16px; padding: 3rem; display: flex; flex-direction: column;
     box-shadow: 0 20px 50px rgba(0,0,0,0.15);
@@ -36,7 +36,6 @@
   .card-header h2 { font-size: 1.75rem; color: var(--text); margin: 0 0 0.5rem 0; font-weight: 700; }
   .subtitle { font-size: 1rem; color: var(--muted); margin: 0; line-height: 1.5; }
   .card-body { flex: 1; position: relative; min-height: 400px; display: flex; }
-  
   .card-footer { margin-top: 3rem; }
   .footer-box { 
     border: 1px solid var(--border); background: var(--bg); 
