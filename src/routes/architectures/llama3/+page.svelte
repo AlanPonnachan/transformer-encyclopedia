@@ -7,8 +7,8 @@
   import { onMount } from 'svelte';
 
   const configs = {
-    '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: '8k' },
-    '70B': { dim: 8192, n_layers: 80, n_heads: 64, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '28,672', ctx: '8k' }
+    '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: '128k' },
+    '70B': { dim: 8192, n_layers: 80, n_heads: 64, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '28,672', ctx: '128k' }
   };
   let activeConfig: '8B' | '70B' = '8B';
   $: c = configs[activeConfig];
@@ -91,7 +91,6 @@
   }
 
   $: activeVector = tokenVector(activeToken.id);
-  let hoveredDimIdx: number | null = null;
 
   function heatBg(val: number) {
     const norm = (val + 1) / 2;
@@ -100,6 +99,24 @@
     const b = Math.round(241 * (1 - norm) + 115 * norm);
     return `rgb(${r},${g},${b})`;
   }
+
+  // --- RMSNORM MICRO VIEW STATE ---
+  let noiseLevel = 1.0;
+  const rawBase = [2.5, -6.1, 0.8, 14.2, -1.4, 4.2, -8.9, 3.1];
+  
+  $: rawVector = rawBase.map((v, i) => v * (1 + noiseLevel * (i % 2 === 0 ? 1.2 : -0.8)));
+  $: rmsVal = Math.sqrt(rawVector.reduce((acc, v) => acc + v * v, 0) / rawVector.length + 1e-5);
+  $: normalizedVector = rawVector.map(v => Number((v / rmsVal).toFixed(3)));
+
+  // --- GQA & KV CACHE MICRO VIEW STATE ---
+  let seqLenCtx = 16384;
+  let attnMode: 'GQA' | 'MHA' | 'MQA' = 'GQA';
+  let hoveredQHead: number | null = null;
+
+  $: kvHeadsCount = attnMode === 'MHA' ? 32 : (attnMode === 'GQA' ? 8 : 1);
+  // Formula: 2 * seqLen * kvHeads * headDim * 2 bytes * n_layers
+  $: vramBytes = 2 * seqLenCtx * kvHeadsCount * 128 * 2 * c.n_layers;
+  $: vramGB = Number((vramBytes / (1024 * 1024 * 1024)).toFixed(2));
 
   // --- ROPE MICRO VIEW STATE ---
   let ropePos = 1;
@@ -110,15 +127,6 @@
   $: vecX = Math.cos(angleRad) * 100;
   $: vecY = Math.sin(angleRad) * 100;
 
-  // --- SWIGLU FFN MICRO VIEW STATE ---
-  let swigluInput = [0.5, -0.2, 0.8, -0.9];
-  let w1_val = [1.2, -0.5, 0.3, 0.8, -1.1, 0.4, 0.7, -0.2];
-  let w3_val = [0.9, 0.1, -0.4, 0.7, 0.6, -0.8, 1.0, 0.2];
-  
-  function silu(x: number) { return x / (1 + Math.exp(-x)); }
-  $: gate_silu = w1_val.map(v => silu(v));
-  $: ffn_multiplied = gate_silu.map((v, i) => v * w3_val[i]);
-  
   onMount(() => inspectedCell.set(null));
 
   $: inEmbed = hoveredNode === 'embed';
@@ -206,7 +214,7 @@
           </g>
 
           <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <g class="interactive-node" class:hovered={inNorm1} on:mouseenter={() => handleNodeHover('norm1')} on:mouseleave={clearHover}>
+          <g class="interactive-node" class:hovered={inNorm1} on:mouseenter={() => handleNodeHover('norm1')} on:mouseleave={clearHover} on:click={() => scrollTo('rmsnorm-card')}>
             <rect x="290" y="500" width="120" height="30" rx="6" />
             <text x="350" y="515" text-anchor="middle" dominant-baseline="middle">RMSNorm 1</text>
           </g>
@@ -218,25 +226,25 @@
           </g>
 
           <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <g class="interactive-node" class:hovered={inAttn} on:mouseenter={() => handleNodeHover('attn')} on:mouseleave={clearHover}>
+          <g class="interactive-node" class:hovered={inAttn} on:mouseenter={() => handleNodeHover('attn')} on:mouseleave={clearHover} on:click={() => scrollTo('gqa-card')}>
             <rect x="250" y="430" width="200" height="35" rx="8" />
             <text x="350" y="447.5" text-anchor="middle" dominant-baseline="middle">Grouped-query attention</text>
           </g>
 
           <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <g class="interactive-node" class:hovered={inNorm2} on:mouseenter={() => handleNodeHover('norm2')} on:mouseleave={clearHover}>
+          <g class="interactive-node" class:hovered={inNorm2} on:mouseenter={() => handleNodeHover('norm2')} on:mouseleave={clearHover} on:click={() => scrollTo('rmsnorm-card')}>
             <rect x="290" y="310" width="120" height="30" rx="6" />
             <text x="350" y="325" text-anchor="middle" dominant-baseline="middle">RMSNorm 2</text>
           </g>
 
           <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <g class="interactive-node" class:hovered={inFFN} on:mouseenter={() => handleNodeHover('ffn')} on:mouseleave={clearHover} on:click={() => scrollTo('ffn-card')}>
+          <g class="interactive-node" class:hovered={inFFN} on:mouseenter={() => handleNodeHover('ffn')} on:mouseleave={clearHover}>
             <rect x="240" y="230" width="220" height="40" rx="8" />
             <text x="350" y="250" text-anchor="middle" dominant-baseline="middle">Feed-forward (SwiGLU)</text>
           </g>
 
           <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <g class="interactive-node" class:hovered={inNorm3} on:mouseenter={() => handleNodeHover('norm3')} on:mouseleave={clearHover}>
+          <g class="interactive-node" class:hovered={inNorm3} on:mouseenter={() => handleNodeHover('norm3')} on:mouseleave={clearHover} on:click={() => scrollTo('rmsnorm-card')}>
             <rect x="290" y="100" width="120" height="30" rx="6" />
             <text x="350" y="115" text-anchor="middle" dominant-baseline="middle">Final RMSNorm</text>
           </g>
@@ -267,14 +275,14 @@
               <div class="data-group"><span class="lbl">MODULE</span><strong class="val">VocabParallelEmbedding</strong></div>
               <div class="data-group"><span class="lbl">SHAPE (IN → OUT)</span><span class="tensor">[bsz, seq] → [bsz, seq, {c.dim}]</span></div>
               <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">{c.vocab_size} × {c.dim}</span></div>
-              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Weights are untied from the output layer. Parallelized across GPUs to handle large {c.vocab_size} vocabulary.</span></div>
+              <div class="data-group"><span class="lbl">NOTE</span><span class="val note">Weights are untied from the output layer. Parallelized across GPUs to handle large {c.vocab_size} vocabulary.</span></div>
               <div class="hud-math">out = tokens @ W_e</div>
             
             {:else if hoveredNode === 'norm1' || hoveredNode === 'norm2' || hoveredNode === 'norm3'}
               <div class="data-group"><span class="lbl">MODULE</span><strong class="val">RMSNorm</strong></div>
               <div class="data-group"><span class="lbl">SHAPE (IN & OUT)</span><span class="tensor">[bsz, seq, {c.dim}]</span></div>
               <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">{c.dim}</span></div>
-              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Llama 3 uses <code>eps = 1e-5</code>. No mean-centering is applied, saving compute.</span></div>
+              <div class="data-group"><span class="lbl">NOTE</span><span class="val note">Llama 3 uses <code>eps = 1e-5</code>. No mean-centering is applied, saving compute.</span></div>
               <div class="hud-math">out = x / √E[x²] * weight</div>
             
             {:else if hoveredNode === 'attn'}
@@ -282,28 +290,28 @@
               <div class="data-group"><span class="lbl">Q SHAPE</span><span class="tensor">[bsz, seq, {c.n_heads}, {headDim}]</span></div>
               <div class="data-group"><span class="lbl">K, V SHAPE</span><span class="tensor">[bsz, seq, {c.n_kv_heads}, {headDim}]</span></div>
               <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">W_q, W_k, W_v, W_o</span></div>
-              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">GQA reduces KV Cache memory overhead by {c.n_heads / c.n_kv_heads}x compared to standard Multi-Head Attention.</span></div>
+              <div class="data-group"><span class="lbl">NOTE</span><span class="val note">GQA reduces KV Cache memory overhead by {c.n_heads / c.n_kv_heads}x compared to standard Multi-Head Attention.</span></div>
               <div class="hud-math">Softmax(Q @ K.T) @ V</div>
             
             {:else if hoveredNode === 'rope'}
               <div class="data-group"><span class="lbl">MODULE</span><strong class="val">Rotary Positional Embeddings</strong></div>
               <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">0 (Precomputed Matrix)</span></div>
               <div class="data-group"><span class="lbl">DATA TYPE</span><span class="val note">Operations performed in <code>complex64</code></span></div>
-              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Llama 3 uses a massive <code>theta_base = 500,000</code> to support long {c.ctx} context windows.</span></div>
+              <div class="data-group"><span class="lbl">NOTE</span><span class="val note">Llama 3 uses a massive <code>theta_base = 500,000</code> to support long {c.ctx} context windows.</span></div>
               <div class="hud-math">xq_, xk_ * freqs_cis</div>
             
             {:else if hoveredNode === 'ffn'}
               <div class="data-group"><span class="lbl">MODULE</span><strong class="val">SwiGLU Feed-Forward</strong></div>
               <div class="data-group"><span class="lbl">DIM EXPANSION</span><span class="tensor">{c.dim} → {c.ffn_hidden} → {c.dim}</span></div>
               <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">3 × ({c.dim} × {c.ffn_hidden})</span></div>
-              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Hidden dimension is scaled up, then forced to be a multiple of 256 for optimal GPU tile layout.</span></div>
+              <div class="data-group"><span class="lbl">NOTE</span><span class="val note">Hidden dimension is scaled up, then forced to be a multiple of 256 for optimal GPU tile layout.</span></div>
               <div class="hud-math">w2(SiLU(w1(x)) * w3(x))</div>
             
             {:else if hoveredNode === 'output'}
               <div class="data-group"><span class="lbl">MODULE</span><strong class="val">Linear (lm_head)</strong></div>
               <div class="data-group"><span class="lbl">SHAPE (IN → OUT)</span><span class="tensor">[bsz, seq, {c.dim}] → [bsz, seq, {c.vocab_size}]</span></div>
               <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">{c.dim} × {c.vocab_size}</span></div>
-              <div class="data-group"><span class="lbl">TECH NOTE</span><span class="val note">Maps the continuous hidden state back into probabilities over the {c.vocab_size} discrete vocabulary tokens.</span></div>
+              <div class="data-group"><span class="lbl">NOTE</span><span class="val note">Maps the continuous hidden state back into probabilities over the {c.vocab_size} discrete vocabulary tokens.</span></div>
               <div class="hud-math">logits = x @ W_out</div>
             {/if}
           </div>
@@ -487,81 +495,193 @@
   </InteractiveCard>
 
   <!-- ==========================================
-       CARD 3: FEED-FORWARD (SWIGLU)
+       CARD 3: RMSNORM STABILIZER (NEW)
        ========================================== -->
-  <span id="ffn-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
+  <span id="rmsnorm-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title="Micro: SwiGLU Feed-Forward Expansion" subtitle="Llama 3 blows the dimension up from {c.dim} to {c.ffn_hidden}, performs gating, and shrinks back to {c.dim}. Click a cell in the expanded state to inspect the math.">
-    <div class="ffn-workspace">
-      <div class="pipeline">
-        <div class="step">
-          <span class="step-label">x (Dim: {c.dim})</span>
-          <Vector length={4} direction="vertical" cellSize={24} data={swigluInput} />
-        </div>
-        <div class="pathway expand">
-           <svg width="60" height="100"><path d="M0,50 C30,50 30,10 60,10 M0,50 C30,50 30,90 60,90" fill="none" stroke="var(--border)" stroke-width="2" /></svg>
-        </div>
-        <div class="step gate-step">
-          <div class="gate-branch">
-             <span class="step-label">SiLU(w1)</span>
-             <Matrix id="ffn-silu" rows={8} cols={1} cellSize={24} data={gate_silu.map(x=>[x])} colorMode="heat" />
+  <InteractiveCard title="Micro: RMSNorm Activation Stabilizer" subtitle="As data flows through 32 deep residual blocks, numbers can explode or collapse. RMSNorm scales total signal energy in a single pass.">
+    <div class="rmsnorm-workspace">
+      
+      <!-- CONTROLS & EXPLANATION -->
+      <div class="rms-controls">
+        <div class="ctrl-group">
+          <div class="lbl-row">
+            <span>Simulate Outlier Noise (Spike)</span>
+            <strong style="color: var(--highlight)">{noiseLevel.toFixed(1)}x</strong>
           </div>
-          <div class="gate-op">⊗</div>
-          <div class="gate-branch">
-             <span class="step-label">w3</span>
-             <Matrix id="ffn-w3" rows={8} cols={1} cellSize={24} data={w3_val.map(x=>[x])} colorMode="signed" />
+          <input type="range" min="0" max="5" step="0.1" bind:value={noiseLevel} class="hl-slider" />
+        </div>
+
+        <div class="preset-buttons-row">
+          <button class="chip" class:chip-active={noiseLevel === 0.5} on:click={() => noiseLevel = 0.5}>Stable Signal</button>
+          <button class="chip" class:chip-active={noiseLevel === 2.5} on:click={() => noiseLevel = 2.5}>Outlier Spike</button>
+          <button class="chip" class:chip-active={noiseLevel === 5.0} on:click={() => noiseLevel = 5.0}>Exploding Signal</button>
+        </div>
+
+        <div class="rms-info-card">
+          <div class="info-title">WHY RMSNORM IN LLAMA 3?</div>
+          <p class="info-text">
+            Older models used LayerNorm, which subtracted the mean and divided variance. 
+            Llama 3 uses <strong>RMSNorm</strong> because skipping mean-subtraction gives identical training stability with fewer GPU operations and cleaner kernels.
+          </p>
+          <div class="rms-gauge">
+            <span>Signal Energy RMS(x):</span>
+            <strong style="color: var(--accent)">{rmsVal.toFixed(2)}</strong>
           </div>
-        </div>
-        <div class="pathway">
-           <svg width="40" height="24"><line x1="0" y1="12" x2="40" y2="12" stroke="var(--border)" stroke-width="2" marker-end="url(#arrow)"/></svg>
-        </div>
-        <div class="step">
-          <span class="step-label">Multiplied<br/>(Hidden: {c.ffn_hidden})</span>
-          <Matrix id="ffn-mult" rows={8} cols={1} cellSize={24} data={ffn_multiplied.map(x=>[x])} colorMode="signed" />
         </div>
       </div>
 
-      <div class="inspector-panel">
-        {#if $inspectedCell && ($inspectedCell.id === 'ffn-silu' || $inspectedCell.id === 'ffn-w3' || $inspectedCell.id === 'ffn-mult')}
-          {@const r = $inspectedCell.r}
-          <h4>Element Inspector: Index [{r}]</h4>
-          <div class="math-row">
-            <div class="var">
-               <span class="var-name">w1(x)[{r}]</span>
-               <span class="var-val">{w1_val[r].toFixed(3)}</span>
-            </div>
-            <span>→ SiLU →</span>
-            <div class="var hl">
-               <span class="var-name">gate</span>
-               <span class="var-val">{gate_silu[r].toFixed(3)}</span>
-            </div>
+      <!-- WAVEFORM / DISTRIBUTION COMPARISON -->
+      <div class="rms-waves-container">
+        
+        <!-- RAW UN-NORMALIZED SIGNAL -->
+        <div class="wave-box">
+          <span class="wave-title">1. Raw Input Signal (x) — Unbounded</span>
+          <div class="bars-flex">
+            {#each rawVector as val}
+              {@const h = Math.min(100, Math.abs(val) * 2.5)}
+              <div class="bar-col">
+                <div class="bar raw-bar" style="height: {h}px; background: {val >= 0 ? 'var(--highlight)' : 'var(--red)'}"></div>
+                <span class="bar-lbl">{val.toFixed(1)}</span>
+              </div>
+            {/each}
           </div>
-          <div class="math-row multiply">
-            <span>×</span>
-            <div class="var">
-               <span class="var-name">w3(x)[{r}]</span>
-               <span class="var-val">{w3_val[r].toFixed(3)}</span>
-            </div>
+        </div>
+
+        <div class="rms-arrow">➔ Division by RMS ({rmsVal.toFixed(2)}) ➔</div>
+
+        <!-- NORMALIZED BOUNDED SIGNAL -->
+        <div class="wave-box normalized">
+          <span class="wave-title">2. RMSNorm Output (y) — Bounded Unit Scale</span>
+          <div class="bars-flex">
+            {#each normalizedVector as val}
+              {@const h = Math.abs(val) * 45}
+              <div class="bar-col">
+                <div class="bar norm-bar" style="height: {h}px; background: {val >= 0 ? 'var(--green)' : 'var(--accent)'}"></div>
+                <span class="bar-lbl">{val.toFixed(2)}</span>
+              </div>
+            {/each}
           </div>
-          <div class="math-row result">
-            <span>=</span>
-            <div class="var final">
-               <span class="var-name">Output</span>
-               <span class="var-val">{ffn_multiplied[r].toFixed(3)}</span>
-            </div>
-          </div>
-        {:else}
-          <div class="empty-inspector">
-             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-             <p>Click any cell in the expanded hidden layers (SiLU, w3, or Multiplied) to inspect the element-wise scalar math.</p>
-          </div>
-        {/if}
+        </div>
+
       </div>
+
     </div>
   </InteractiveCard>
 
   <!-- ==========================================
-       CARD 4: ROPE
+       CARD 4: GROUPED-QUERY ATTENTION & KV CACHE (NEW)
+       ========================================== -->
+  <span id="gqa-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
+  
+  <InteractiveCard title="Micro: Grouped-Query Attention (GQA) & KV Cache" subtitle="Llama 3 shares 1 Key/Value head across 4 Query heads, preventing 128k context windows from overflowing GPU memory.">
+    <div class="gqa-workspace">
+      
+      <!-- LEFT: HEAD BROADCASTER MAP -->
+      <div class="gqa-broadcaster">
+        <div class="gqa-header">
+          <h4>Head Sharing Map (32 Q ➔ 8 KV)</h4>
+          <span class="gqa-sub">Hover over any Query Head to see its KV Group:</span>
+        </div>
+
+        <div class="heads-grid">
+          <!-- 32 QUERY HEADS -->
+          <div class="q-heads-col">
+            <span class="head-col-lbl">32 Query Heads</span>
+            <div class="q-chips">
+              {#each Array(32) as _, qIdx}
+                {@const groupIdx = Math.floor(qIdx / 4)}
+                {@const isHighlighted = hoveredQHead === qIdx}
+                <!-- svelte-ignore a11y-no-static-element-interactions -->
+                <div 
+                  class="q-chip" 
+                  class:highlighted-q={isHighlighted}
+                  on:mouseenter={() => hoveredQHead = qIdx}
+                  on:mouseleave={() => hoveredQHead = null}
+                >
+                  Q{qIdx + 1}
+                </div>
+              {/each}
+            </div>
+          </div>
+
+          <div class="gqa-broad-arrow">4:1 Broadcast</div>
+
+          <!-- 8 KV HEADS -->
+          <div class="kv-heads-col">
+            <span class="head-col-lbl">8 Shared KV Heads</span>
+            <div class="kv-chips">
+              {#each Array(8) as _, kvIdx}
+                {@const isTargetGroup = hoveredQHead !== null && Math.floor(hoveredQHead / 4) === kvIdx}
+                <div class="kv-chip" class:target-kv={isTargetGroup}>
+                  KV Head {kvIdx + 1}
+                  <span class="group-tag">Shares Q{kvIdx * 4 + 1}..Q{kvIdx * 4 + 4}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: KV CACHE VRAM CALCULATOR -->
+      <div class="gqa-calculator">
+        <h4>Live KV Cache Memory Simulator</h4>
+        
+        <!-- ATTENTION MODE TOGGLE -->
+        <div class="mode-toggle-row">
+          <button class="mode-btn" class:active-mode={attnMode === 'MHA'} on:click={() => attnMode = 'MHA'}>
+            MHA (32 KV Heads)
+          </button>
+          <button class="mode-btn" class:active-mode={attnMode === 'GQA'} on:click={() => attnMode = 'GQA'}>
+            GQA (8 KV Heads — Llama 3)
+          </button>
+          <button class="mode-btn" class:active-mode={attnMode === 'MQA'} on:click={() => attnMode = 'MQA'}>
+            MQA (1 KV Head)
+          </button>
+        </div>
+
+        <!-- CONTEXT LENGTH SLIDER -->
+        <div class="ctrl-group margin-top">
+          <div class="lbl-row">
+            <span>Context Length (Tokens)</span>
+            <strong style="color: var(--highlight)">{seqLenCtx.toLocaleString()} tokens</strong>
+          </div>
+          <input type="range" min="1024" max="131072" step="1024" bind:value={seqLenCtx} class="hl-slider" />
+        </div>
+
+        <!-- VRAM METER DISPLAY -->
+        <div class="vram-meter-box">
+          <div class="vram-label-row">
+            <span>KV Cache Memory Needed:</span>
+            <strong class="vram-num" class:vram-danger={vramGB > 10} class:vram-safe={vramGB <= 10}>{vramGB} GB</strong>
+          </div>
+
+          <div class="vram-bar-track">
+            <div 
+              class="vram-bar-fill" 
+              style="width: {Math.min(100, (vramGB / 16) * 100)}%"
+              class:fill-danger={vramGB > 10}
+            ></div>
+          </div>
+
+          <div class="vram-note">
+            {#if attnMode === 'MHA'}
+              ⚠️ Standard MHA wastes memory! At 128k context, KV Cache consumes {vramGB} GB VRAM per request.
+            {:else if attnMode === 'GQA'}
+              ✅ <strong>75% Memory Saved!</strong> GQA keeps the 128k KV Cache at {vramGB} GB VRAM with zero loss in quality.
+            {:else}
+              ⚡ Extreme MQA compression ({vramGB} GB VRAM), but slightly degrades model modeling capability.
+            {/if}
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </InteractiveCard>
+
+  <!-- ==========================================
+       CARD 5: ROPE
        ========================================== -->
   <span id="rope-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="Llama 3 rotates feature pairs based on Token Position (m) and Feature Index (i).">
@@ -645,9 +765,8 @@
   .interactive-node:hover rect, .interactive-node.hovered rect { stroke: var(--accent); fill: rgba(99, 102, 241, 0.08); }
   .interactive-node:hover text, .interactive-node.hovered text { fill: var(--accent); }
 
-  /* ================== TOKEN EMBEDDING (USER CENTRIC & WIDER) ================== */
+  /* ================== TOKEN EMBEDDING ================== */
   .embed-interactive-wrapper { display: flex; flex-direction: column; gap: 2rem; width: 100%; }
-  
   .prompt-bar { display: flex; align-items: center; gap: 1.5rem; background: var(--surface2); padding: 1rem 1.5rem; border: 1px solid var(--border); border-radius: 12px; }
   .prompt-label { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent); }
   .preset-chips { display: flex; gap: 0.75rem; flex-wrap: wrap; }
@@ -655,7 +774,6 @@
   .chip:hover { border-color: var(--text); color: var(--text); }
   .chip-active { border-color: var(--accent); color: var(--accent); background: rgba(99, 102, 241, 0.1); font-weight: 600; }
 
-  /* Pipeline Layout */
   .embed-pipeline { display: flex; align-items: stretch; gap: 1.25rem; width: 100%; overflow-x: auto; padding-bottom: 0.5rem; }
   .pipe-card { flex: 1; min-width: 320px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
   .step-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 700; color: var(--accent); background: rgba(99, 102, 241, 0.1); padding: 2px 8px; border-radius: 4px; width: fit-content; }
@@ -663,7 +781,6 @@
   .pipe-desc { font-size: 0.85rem; color: var(--muted); margin: 0; line-height: 1.4; }
   .pipe-arrow { display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--muted); user-select: none; }
 
-  /* Step 1: Token Cards */
   .tokens-flex { display: flex; flex-direction: column; gap: 0.75rem; margin-top: auto; }
   .token-flipper { background: var(--surface); border: 1px solid var(--border); padding: 0.85rem 1.25rem; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
   .token-flipper:hover { border-color: var(--accent); transform: translateX(4px); }
@@ -672,7 +789,6 @@
   .tok-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); }
   .tok-id { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--highlight); font-size: 0.95rem; }
 
-  /* Step 2: 2D Matrix Grid */
   .matrix-grid-visual { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; margin-top: auto; }
   .grid-col-headers { display: grid; grid-template-columns: 72px repeat(6, 1fr); gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); align-items: center; }
   .grid-col-headers span { text-align: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -690,39 +806,78 @@
   .laser-beam { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.4), transparent); animation: laser 1.5s ease-in-out infinite; pointer-events: none; }
   @keyframes laser { 0% { opacity: 0.2; } 50% { opacity: 0.8; } 100% { opacity: 0.2; } }
 
-  /* Step 3: Vector Scatter Plot */
   .vector-space-plot { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; margin-top: auto; }
   .plot-svg { width: 100%; height: auto; max-height: 200px; overflow: visible; }
   .axis-lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: var(--muted); }
   .point-lbl { font-family: 'Space Grotesk', sans-serif; font-size: 11px; }
   .point-group { transition: all 0.3s; }
   .is-active-point circle { filter: drop-shadow(0 0 6px var(--accent)); }
-  
   .proof-callout { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); padding: 0.5rem 0.75rem; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
   .proof-eq { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--highlight); font-weight: 700; }
   .proof-note { font-size: 0.7rem; color: var(--muted); }
 
-  /* ================== SWIGLU FFN ================== */
-  .ffn-workspace { display: flex; gap: 4rem; align-items: center; justify-content: center; padding: 2rem; width: 100%; }
-  .pipeline { display: flex; align-items: center; gap: 1rem; }
-  .step { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
-  .step-label { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); text-align: center; }
-  .gate-step { display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1rem; background: var(--surface2); border: 1px dashed var(--border); border-radius: 12px; }
-  .gate-branch { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
-  .gate-op { font-size: 1.5rem; color: var(--accent); font-weight: 300; margin-top: 1.5rem; }
-  .inspector-panel { flex: 1; max-width: 400px; min-height: 250px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; display: flex; flex-direction: column; justify-content: center; }
-  .inspector-panel h4 { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); margin: 0 0 1.5rem 0; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-  .math-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
-  .math-row span { font-family: 'JetBrains Mono', monospace; color: var(--muted); font-size: 0.9rem; }
-  .math-row.multiply { padding-left: 2rem; }
-  .math-row.result { padding-left: 2rem; border-top: 1px dashed var(--border); padding-top: 1rem; }
-  .var { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 6px; }
-  .var.hl { border-color: var(--highlight); background: rgba(245, 158, 11, 0.1); }
-  .var.final { border-color: var(--accent); background: rgba(99, 102, 241, 0.1); }
-  .var-name { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); margin-bottom: 0.25rem; }
-  .var-val { font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; color: var(--text); font-weight: 600; }
-  .empty-inspector { display: flex; flex-direction: column; align-items: center; gap: 1rem; color: var(--muted); text-align: center; opacity: 0.6; }
-  .empty-inspector p { font-size: 0.9rem; line-height: 1.5; margin: 0; }
+  /* ================== RMSNORM WORKSPACE ================== */
+  .rmsnorm-workspace { display: flex; gap: 3rem; align-items: flex-start; justify-content: space-between; padding: 1rem 0; width: 100%; flex-wrap: wrap; }
+  .rms-controls { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 1.5rem; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 0.5rem; }
+  .lbl-row { display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
+  .hl-slider { accent-color: var(--highlight); cursor: pointer; }
+  .preset-buttons-row { display: flex; gap: 0.5rem; }
+  
+  .rms-info-card { background: var(--surface2); border: 1px solid var(--border); border-left: 3px solid var(--accent); padding: 1.25rem; border-radius: 8px; display: flex; flex-direction: column; gap: 0.75rem; }
+  .info-title { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; color: var(--accent); letter-spacing: 0.05em; }
+  .info-text { font-size: 0.85rem; color: var(--text); opacity: 0.85; line-height: 1.5; margin: 0; }
+  .info-text strong { color: var(--highlight); }
+  .rms-gauge { display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 0.5rem 0.75rem; border-radius: 4px; border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted); }
+
+  .rms-waves-container { flex: 1.2; min-width: 360px; display: flex; flex-direction: column; gap: 1rem; }
+  .wave-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .wave-title { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+  .bars-flex { display: flex; align-items: flex-end; justify-content: space-around; height: 110px; padding-top: 10px; border-bottom: 1px stroke var(--border); }
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar { width: 16px; border-radius: 3px 3px 0 0; transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s; }
+  .bar-lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+  .rms-arrow { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent); text-align: center; font-weight: 600; }
+
+  /* ================== GQA WORKSPACE ================== */
+  .gqa-workspace { display: flex; gap: 3rem; align-items: flex-start; justify-content: space-between; padding: 1rem 0; width: 100%; flex-wrap: wrap; }
+  .gqa-broadcaster { flex: 1; min-width: 340px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+  .gqa-header h4 { font-size: 1.05rem; font-weight: 700; margin: 0 0 0.25rem 0; color: var(--text); }
+  .gqa-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+  
+  .heads-grid { display: flex; align-items: center; gap: 1.5rem; }
+  .head-col-lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; display: block; }
+  .q-heads-col { flex: 1; }
+  .q-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .q-chip { background: var(--bg); border: 1px solid var(--border); color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; padding: 4px 2px; text-align: center; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+  .q-chip:hover, .highlighted-q { border-color: var(--highlight); color: var(--highlight); background: rgba(245, 158, 11, 0.15); font-weight: 700; }
+  
+  .gqa-broad-arrow { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent); font-weight: 700; text-align: center; user-select: none; }
+  
+  .kv-heads-col { flex: 1.1; }
+  .kv-chips { display: flex; flex-direction: column; gap: 6px; }
+  .kv-chip { background: var(--bg); border: 1px solid var(--border); padding: 0.4rem 0.75rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text); display: flex; flex-direction: column; gap: 2px; transition: all 0.2s; }
+  .group-tag { font-size: 0.6rem; color: var(--muted); }
+  .target-kv { border-color: var(--accent) !important; background: rgba(99, 102, 241, 0.15) !important; color: var(--accent) !important; box-shadow: 0 0 10px rgba(99, 102, 241, 0.2); }
+
+  .gqa-calculator { flex: 1; min-width: 320px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+  .gqa-calculator h4 { font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--text); }
+  
+  .mode-toggle-row { display: flex; gap: 0.5rem; }
+  .mode-btn { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 0.5rem 0.25rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; cursor: pointer; transition: all 0.2s; }
+  .active-mode { border-color: var(--accent); color: var(--accent); background: rgba(99, 102, 241, 0.15); font-weight: 700; }
+  .margin-top { margin-top: 0.5rem; }
+
+  .vram-meter-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .vram-label-row { display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text); }
+  .vram-num { font-size: 1.2rem; font-weight: 700; }
+  .vram-safe { color: var(--green); }
+  .vram-danger { color: var(--red); }
+  
+  .vram-bar-track { height: 10px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .vram-bar-fill { height: 100%; background: var(--green); transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s; }
+  .fill-danger { background: var(--red) !important; }
+  .vram-note { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
 
   /* ================== ROPE ================== */
   .rope-workspace { display: flex; gap: 4rem; align-items: center; justify-content: center; padding: 2rem; }
