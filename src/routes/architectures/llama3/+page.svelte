@@ -118,9 +118,9 @@
 
   // --- CARD 5: ROPE STATE ---
   let ropePos = 100;
-  $: thetaLow  = ropePos * Math.pow(500000, -(0 / headDim));
-  $: thetaMid  = ropePos * Math.pow(500000, -(headDim * 0.25 / headDim));
-  $: thetaHigh = ropePos * Math.pow(500000, -(headDim * 0.48 / headDim));
+  $: thetaLow  = ropePos * (1 / Math.pow(500000, 0 / headDim));
+  $: thetaMid  = ropePos * (1 / Math.pow(500000, (headDim * 0.25) / headDim));
+  $: thetaHigh = ropePos * (1 / Math.pow(500000, (headDim * 0.48) / headDim));
 
   $: vecLowX  = Math.cos(thetaLow) * 70;
   $: vecLowY  = Math.sin(thetaLow) * 70;
@@ -131,14 +131,15 @@
 
   // --- CARD 6: SWIGLU STATE ---
   let ffnArchChoice: 'SwiGLU' | 'GELU' = 'SwiGLU';
-  let gateThreshold = 0.0;
+  let gateShift = 0.0;
   const swigluInput = [0.5, -0.2, 0.8, -0.9];
-  const w1_raw = [1.2, -1.8, 0.4, 2.1, -0.9, 1.5, -2.4, 0.7];
-  const w3_raw = [0.9, 0.6, -1.2, 1.4, 0.8, -0.5, 1.1, -0.3];
+  const w1_raw = [1.2, -1.8, 0.4, 2.1, -0.9, 1.5, -2.4, 0.7]; // Gate
+  const w3_raw = [0.9, 0.6, -1.2, 1.4, 0.8, -0.5, 1.1, -0.3]; // Up / Content
   
   function silu(x: number) { return x / (1 + Math.exp(-x)); }
-  $: gate_activations = w1_raw.map(v => silu(v + gateThreshold));
+  $: gate_activations = w1_raw.map(v => silu(v + gateShift));
   $: swiglu_gated = gate_activations.map((g, i) => g * w3_raw[i]);
+  $: swiglu_down = swiglu_gated.map(v => Number((v * 0.85).toFixed(2)));
 
   // --- CARD 7: CAUSAL MASK STATE ---
   const sampleSentence = ["The", "wise", "king", "ruled", "peacefully"];
@@ -550,7 +551,7 @@
        ========================================== -->
   <span id="rmsnorm-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title="Micro: RMSNorm Activation Stabilizer" subtitle="As data flows through 32 deep residual blocks, numbers can explode or collapse. RMSNorm scales total signal energy in a single pass.">
+  <InteractiveCard title="Micro: RMSNorm Activation Stabilizer" subtitle="As data flows through 32 deep residual blocks, numbers can drift. RMSNorm rescales token activations to maintain consistent signal energy.">
     <div class="rmsnorm-workspace">
       
       <!-- CONTROLS & EXPLANATION -->
@@ -570,13 +571,14 @@
         </div>
 
         <div class="rms-info-card">
-          <div class="info-title">MATHEMATICAL EQUATION</div>
+          <div class="info-title">MATHEMATICAL GROUND TRUTH</div>
           <div class="rms-math-display">
             RMSNorm(x) = ( x / √( Mean(x²) + ε ) ) × γ
           </div>
           <p class="info-text">
-            Skipping mean-subtraction gives identical training stability with fewer GPU operations and cleaner kernels.
+            Skipping mean-subtraction reduces computation while achieving comparable training stability in modern pre-norm transformers.
           </p>
+          <span class="gamma-note">* Visualization assumes γ = 1.0 (learnable gain)</span>
           <div class="rms-gauge">
             <span>Signal Energy RMS(x):</span>
             <strong style="color: var(--accent)">{rmsVal.toFixed(2)}</strong>
@@ -587,7 +589,7 @@
       <!-- WAVEFORM / DISTRIBUTION COMPARISON -->
       <div class="rms-waves-container">
         <div class="wave-box">
-          <span class="wave-title">1. Raw Input Signal (x) — Unbounded</span>
+          <span class="wave-title">1. Raw Input Signal (x) — Unbounded Magnitude</span>
           <div class="bars-flex">
             {#each rawVector as val}
               {@const h = Math.min(100, Math.abs(val) * 2.5)}
@@ -599,10 +601,10 @@
           </div>
         </div>
 
-        <div class="rms-arrow">➔ Division by RMS ({rmsVal.toFixed(2)}) ➔</div>
+        <div class="rms-arrow">÷ RMS(x) = ÷ {rmsVal.toFixed(2)} ➔</div>
 
         <div class="wave-box normalized">
-          <span class="wave-title">2. RMSNorm Output (y) — Bounded Unit Scale</span>
+          <span class="wave-title">2. RMSNorm Output (y) — Unit RMS Scale</span>
           <div class="bars-flex">
             {#each normalizedVector as val}
               {@const h = Math.abs(val) * 45}
@@ -727,7 +729,7 @@
        CARD 5: RE-ENGINEERED ROPE
        ========================================== -->
   <span id="rope-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="Llama 3 encodes token position by rotating feature pairs in complex 2D space. High frequencies capture short distances; low frequencies capture long contexts.">
+  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="RoPE encodes position by rotating Query and Key feature pairs inside attention before dot-product scores are computed.">
     <div class="rope-workspace">
       
       <div class="rope-controls">
@@ -740,9 +742,10 @@
         </div>
 
         <div class="math-box">
-          <div class="math-title">LLAMA 3 ROTATION FREQUENCY:</div>
-          <div class="math-eq">θ<sub>i</sub> = 500,000<sup>-2i / d</sup></div>
-          <div class="math-res">Zero parameters — pure position rotation.</div>
+          <div class="math-title">ROTATION FREQUENCY FORMULA:</div>
+          <div class="math-eq">θ<sub>i</sub> = 1 / 500,000<sup>2i/d</sup></div>
+          <div class="math-eq">angle = position × θ<sub>i</sub></div>
+          <div class="math-res">Fast rotations encode fine-grained local positions; slow rotations preserve long-range relationships.</div>
         </div>
       </div>
 
@@ -750,27 +753,31 @@
       <div class="rope-multi-viz">
         
         <div class="wheel-box">
-          <span class="wheel-lbl">Low Dim (i=0)<br/><small style="color:var(--highlight)">High Freq (Fast)</small></span>
+          <span class="wheel-lbl">Dimension Pair #0<br/><small style="color:var(--highlight)">Highest Frequency (Fast)</small></span>
           <svg viewBox="-90 -90 180 180" class="circle-svg">
             <circle cx="0" cy="0" r="70" fill="none" stroke="var(--border)" stroke-dasharray="4,4" />
+            <!-- Fixed Position 0 Baseline -->
+            <line x1="0" y1="0" x2="70" y2="0" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2,2" />
             <line x1="0" y1="0" x2={vecLowX} y2={-vecLowY} stroke="var(--highlight)" stroke-width="3" />
             <circle cx={vecLowX} cy={-vecLowY} r="5" fill="var(--highlight)" />
           </svg>
         </div>
 
         <div class="wheel-box">
-          <span class="wheel-lbl">Mid Dim (i=d/4)<br/><small style="color:var(--blue)">Mid Freq</small></span>
+          <span class="wheel-lbl">Dimension Pair #d/4<br/><small style="color:var(--blue)">Medium Frequency</small></span>
           <svg viewBox="-90 -90 180 180" class="circle-svg">
             <circle cx="0" cy="0" r="70" fill="none" stroke="var(--border)" stroke-dasharray="4,4" />
+            <line x1="0" y1="0" x2="70" y2="0" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2,2" />
             <line x1="0" y1="0" x2={vecMidX} y2={-vecMidY} stroke="var(--blue)" stroke-width="3" />
             <circle cx={vecMidX} cy={-vecMidY} r="5" fill="var(--blue)" />
           </svg>
         </div>
 
         <div class="wheel-box">
-          <span class="wheel-lbl">High Dim (i=d/2)<br/><small style="color:var(--green)">Low Freq (Slow)</small></span>
+          <span class="wheel-lbl">Dimension Pair #d/2-1<br/><small style="color:var(--green)">Lowest Frequency (Slow)</small></span>
           <svg viewBox="-90 -90 180 180" class="circle-svg">
             <circle cx="0" cy="0" r="70" fill="none" stroke="var(--border)" stroke-dasharray="4,4" />
+            <line x1="0" y1="0" x2="70" y2="0" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2,2" />
             <line x1="0" y1="0" x2={vecHighX} y2={-vecHighY} stroke="var(--green)" stroke-width="3" />
             <circle cx={vecHighX} cy={-vecHighY} r="5" fill="var(--green)" />
           </svg>
@@ -812,15 +819,15 @@
       <div class="swiglu-pipeline-box">
         <div class="ctrl-group" style="width: 250px;">
           <div class="lbl-row">
-            <span>Gate Bias Threshold</span>
-            <strong style="color: var(--accent)">{gateThreshold.toFixed(1)}</strong>
+            <span>Gate Control Shift</span>
+            <strong style="color: var(--accent)">{gateShift.toFixed(1)}</strong>
           </div>
-          <input type="range" min="-3" max="3" step="0.1" bind:value={gateThreshold} class="hl-slider" />
+          <input type="range" min="-3" max="3" step="0.1" bind:value={gateShift} class="hl-slider" />
         </div>
 
         <div class="gate-branches-flex">
           <div class="branch-card">
-            <span class="branch-lbl">Branch 1: w1(x) ➔ SiLU (Gate)</span>
+            <span class="branch-lbl">Gate Projection: W<sub>gate</sub>(x) ➔ SiLU</span>
             <div class="cells-row">
               {#each gate_activations as g}
                 <div class="gate-cell" style="background: {heatBg(g)}">{g.toFixed(2)}</div>
@@ -831,7 +838,7 @@
           <div class="mult-symbol">⊗</div>
 
           <div class="branch-card">
-            <span class="branch-lbl">Branch 2: w3(x) (Content)</span>
+            <span class="branch-lbl">Content Projection: W<sub>up</sub>(x)</span>
             <div class="cells-row">
               {#each w3_raw as u}
                 <div class="gate-cell" style="background: {heatBg(u)}">{u.toFixed(2)}</div>
@@ -839,12 +846,12 @@
             </div>
           </div>
 
-          <div class="mult-symbol">➔ w2 ➔</div>
+          <div class="mult-symbol">➔ W<sub>down</sub> ➔</div>
 
           <div class="branch-card result-card">
-            <span class="branch-lbl">Gated Result: SiLU(w1) ⊙ w3</span>
+            <span class="branch-lbl">Down Projection (d=4096)</span>
             <div class="cells-row">
-              {#each swiglu_gated as r}
+              {#each swiglu_down as r}
                 <div class="gate-cell" style="background: {heatBg(r)}">{r.toFixed(2)}</div>
               {/each}
             </div>
@@ -1060,6 +1067,7 @@
   .info-title { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; color: var(--accent); letter-spacing: 0.05em; }
   .rms-math-display { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--highlight); font-weight: 700; background: var(--bg); padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border); text-align: center; }
   .info-text { font-size: 0.85rem; color: var(--text); opacity: 0.85; line-height: 1.5; margin: 0; }
+  .gamma-note { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); font-style: italic; }
   .rms-gauge { display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 0.5rem 0.75rem; border-radius: 4px; border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted); }
 
   .rms-waves-container { flex: 1.2; min-width: 360px; display: flex; flex-direction: column; gap: 1rem; }
