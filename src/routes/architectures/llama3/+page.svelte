@@ -107,6 +107,22 @@
   $: rmsVal = Math.sqrt(rawVector.reduce((acc, v) => acc + v * v, 0) / rawVector.length + 1e-5);
   $: normalizedVector = rawVector.map(v => Number((v / rmsVal).toFixed(3)));
 
+  // 2D Geometric Vector Presets
+  const vec2DPresets = [
+    { label: "[4.0, 2.0]", x: [4.0, 2.0] },
+    { label: "[8.0, -4.0]", x: [8.0, -4.0] },
+    { label: "[-3.0, 9.0]", x: [-3.0, 9.0] }
+  ];
+  let active2DIdx = 0;
+  $: active2D = vec2DPresets[active2DIdx].x;
+  $: rms2D = Math.sqrt((active2D[0] * active2D[0] + active2D[1] * active2D[1]) / 2 + 1e-5);
+  $: norm2D = [
+    Number((active2D[0] / rms2D).toFixed(3)),
+    Number((active2D[1] / rms2D).toFixed(3))
+  ];
+  $: ratioOrig = Number((active2D[0] / active2D[1]).toFixed(3));
+  $: ratioNorm = Number((norm2D[0] / norm2D[1]).toFixed(3));
+
   // --- CARD 4: GQA STATE ---
   let seqLenCtx = 16384;
   let attnMode: 'GQA' | 'MHA' | 'MQA' = 'GQA';
@@ -133,8 +149,8 @@
   let ffnArchChoice: 'SwiGLU' | 'GELU' = 'SwiGLU';
   let gateShift = 0.0;
   const swigluInput = [0.5, -0.2, 0.8, -0.9];
-  const w1_raw = [1.2, -1.8, 0.4, 2.1, -0.9, 1.5, -2.4, 0.7]; // Gate
-  const w3_raw = [0.9, 0.6, -1.2, 1.4, 0.8, -0.5, 1.1, -0.3]; // Up / Content
+  const w1_raw = [1.2, -1.8, 0.4, 2.1, -0.9, 1.5, -2.4, 0.7];
+  const w3_raw = [0.9, 0.6, -1.2, 1.4, 0.8, -0.5, 1.1, -0.3];
   
   function silu(x: number) { return x / (1 + Math.exp(-x)); }
   $: gate_activations = w1_raw.map(v => silu(v + gateShift));
@@ -586,35 +602,99 @@
         </div>
       </div>
 
-      <!-- WAVEFORM / DISTRIBUTION COMPARISON -->
-      <div class="rms-waves-container">
-        <div class="wave-box">
-          <span class="wave-title">1. Raw Input Signal (x) — Unbounded Magnitude</span>
-          <div class="bars-flex">
-            {#each rawVector as val}
-              {@const h = Math.min(100, Math.abs(val) * 2.5)}
-              <div class="bar-col">
-                <div class="bar raw-bar" style="height: {h}px; background: {val >= 0 ? 'var(--highlight)' : 'var(--red)'}"></div>
-                <span class="bar-lbl">{val.toFixed(1)}</span>
-              </div>
+      <!-- DUAL INSPECTOR: 2D GEOMETRY PLOT + 1D WAVEFORMS -->
+      <div class="rms-dual-inspector">
+        
+        <!-- 2D GEOMETRIC DIRECTION PLOT -->
+        <div class="vec2d-container">
+          <span class="wave-title">2D Directional Ray Invariance</span>
+          <div class="vec2d-presets-row">
+            {#each vec2DPresets as p, i}
+              <button 
+                class="chip" 
+                class:chip-active={active2DIdx === i} 
+                on:click={() => active2DIdx = i}
+              >
+                x = {p.label}
+              </button>
             {/each}
+          </div>
+
+          <div class="vec2d-plot-and-math">
+            <svg viewBox="0 0 300 220" class="vec2d-svg">
+              <defs>
+                <marker id="arrow-amber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 2 L 8 5 L 0 8 z" fill="var(--highlight)" /></marker>
+                <marker id="arrow-indigo" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 2 L 8 5 L 0 8 z" fill="var(--accent)" /></marker>
+              </defs>
+
+              <!-- Axes -->
+              <line x1="20" y1="110" x2="280" y2="110" stroke="var(--border)" stroke-width="1.5" />
+              <line x1="150" y1="20" x2="150" y2="200" stroke="var(--border)" stroke-width="1.5" />
+              <circle cx="150" cy="110" r="3" fill="var(--muted)" />
+
+              <!-- Directional Ray Line (Dashed) -->
+              <line x1="150" y1="110" x2={150 + active2D[0] * 12} y2={110 - active2D[1] * 12} stroke="var(--highlight)" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.6" />
+
+              <!-- Original Vector Arrow x -->
+              <line x1="150" y1="110" x2={150 + active2D[0] * 12} y2={110 - active2D[1] * 12} stroke="var(--highlight)" stroke-width="2.5" marker-end="url(#arrow-amber)" />
+              <text x={150 + active2D[0] * 12 + 6} y={110 - active2D[1] * 12 - 4} fill="var(--highlight)" font-family="JetBrains Mono" font-size="11" font-weight="700">
+                x = [{active2D[0]}, {active2D[1]}]
+              </text>
+
+              <!-- Normalized Vector Arrow y -->
+              <line x1="150" y1="110" x2={150 + norm2D[0] * 12} y2={110 - norm2D[1] * 12} stroke="var(--accent)" stroke-width="3" marker-end="url(#arrow-indigo)" />
+              <text x={150 + norm2D[0] * 12 + 6} y={110 - norm2D[1] * 12 + 12} fill="var(--accent)" font-family="JetBrains Mono" font-size="11" font-weight="700">
+                y = [{norm2D[0]}, {norm2D[1]}]
+              </text>
+            </svg>
+
+            <div class="ratio-proof-card">
+              <div class="proof-row">
+                <span>x Ratio (x₁ / x₂):</span>
+                <strong>{active2D[0]} / {active2D[1]} = {ratioOrig}</strong>
+              </div>
+              <div class="proof-row">
+                <span>y Ratio (y₁ / y₂):</span>
+                <strong style="color: var(--accent)">{norm2D[0]} / {norm2D[1]} = {ratioNorm}</strong>
+              </div>
+              <div class="proof-insight">
+                RMSNorm rescales magnitude while keeping feature directions and coordinate ratios 100% invariant!
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="rms-arrow">÷ RMS(x) = ÷ {rmsVal.toFixed(2)} ➔</div>
+        <!-- 1D WAVEFORMS (FIXED UNIFIED SCALE & ZERO OVERFLOW) -->
+        <div class="rms-waves-container">
+          <div class="wave-box">
+            <span class="wave-title">1. Raw Input Signal (x) — Unbounded</span>
+            <div class="bars-flex">
+              {#each rawVector as val}
+                {@const h = Math.min(75, Math.max(4, (Math.abs(val) / 40) * 75))}
+                <div class="bar-col">
+                  <div class="bar raw-bar" style="height: {h}px; background: {val >= 0 ? 'var(--highlight)' : 'var(--red)'}"></div>
+                  <span class="bar-lbl">{val.toFixed(1)}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
 
-        <div class="wave-box normalized">
-          <span class="wave-title">2. RMSNorm Output (y) — Unit RMS Scale</span>
-          <div class="bars-flex">
-            {#each normalizedVector as val}
-              {@const h = Math.abs(val) * 45}
-              <div class="bar-col">
-                <div class="bar norm-bar" style="height: {h}px; background: {val >= 0 ? 'var(--green)' : 'var(--accent)'}"></div>
-                <span class="bar-lbl">{val.toFixed(2)}</span>
-              </div>
-            {/each}
+          <div class="rms-arrow">÷ RMS(x) = ÷ {rmsVal.toFixed(2)} ➔</div>
+
+          <div class="wave-box normalized">
+            <span class="wave-title">2. RMSNorm Output (y) — Unit RMS Scale</span>
+            <div class="bars-flex">
+              {#each normalizedVector as val}
+                {@const h = Math.min(75, Math.max(4, ((Math.abs(val) * 2) / 40) * 75))}
+                <div class="bar-col">
+                  <div class="bar norm-bar" style="height: {h}px; background: {val >= 0 ? 'var(--green)' : 'var(--accent)'}"></div>
+                  <span class="bar-lbl">{val.toFixed(2)}</span>
+                </div>
+              {/each}
+            </div>
           </div>
         </div>
+
       </div>
 
     </div>
@@ -1055,8 +1135,8 @@
   .proof-note { font-size: 0.7rem; color: var(--muted); }
 
   /* ================== RMSNORM WORKSPACE ================== */
-  .rmsnorm-workspace { display: flex; gap: 3rem; align-items: flex-start; justify-content: space-between; padding: 1rem 0; width: 100%; flex-wrap: wrap; }
-  .rms-controls { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 1.5rem; }
+  .rmsnorm-workspace { display: flex; gap: 2rem; align-items: flex-start; justify-content: space-between; padding: 1rem 0; width: 100%; flex-wrap: wrap; }
+  .rms-controls { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 1.25rem; }
   .ctrl-group { display: flex; flex-direction: column; gap: 0.5rem; }
   .lbl-row { display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
   .hl-slider { accent-color: var(--highlight); cursor: pointer; }
@@ -1070,13 +1150,22 @@
   .gamma-note { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); font-style: italic; }
   .rms-gauge { display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 0.5rem 0.75rem; border-radius: 4px; border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted); }
 
-  .rms-waves-container { flex: 1.2; min-width: 360px; display: flex; flex-direction: column; gap: 1rem; }
-  .wave-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .rms-dual-inspector { flex: 1.6; min-width: 360px; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  .vec2d-container { flex: 1; min-width: 280px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .vec2d-presets-row { display: flex; gap: 0.4rem; }
+  .vec2d-plot-and-math { display: flex; flex-direction: column; gap: 0.75rem; align-items: center; }
+  .vec2d-svg { width: 100%; max-width: 260px; height: auto; overflow: visible; }
+  .ratio-proof-card { width: 100%; background: var(--surface2); border: 1px solid var(--border); padding: 0.75rem; border-radius: 6px; display: flex; flex-direction: column; gap: 0.4rem; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+  .proof-row { display: flex; justify-content: space-between; color: var(--text); }
+  .proof-insight { font-size: 0.65rem; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 0.4rem; margin-top: 0.2rem; }
+
+  .rms-waves-container { flex: 1; min-width: 280px; display: flex; flex-direction: column; gap: 1rem; }
+  .wave-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; overflow: hidden; }
   .wave-title { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); font-weight: 600; }
-  .bars-flex { display: flex; align-items: flex-end; justify-content: space-around; height: 110px; padding-top: 10px; border-bottom: 1px stroke var(--border); }
+  .bars-flex { display: flex; align-items: flex-end; justify-content: space-around; height: 95px; padding-top: 15px; border-bottom: 1px stroke var(--border); }
   .bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .bar { width: 16px; border-radius: 3px 3px 0 0; transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s; }
-  .bar-lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+  .bar { width: 14px; border-radius: 3px 3px 0 0; transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s; max-height: 75px; }
+  .bar-lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--muted); }
   .rms-arrow { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent); text-align: center; font-weight: 600; }
 
   /* ================== GQA WORKSPACE ================== */
