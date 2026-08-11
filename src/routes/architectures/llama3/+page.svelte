@@ -132,25 +132,27 @@
   $: vramBytes = 2 * seqLenCtx * kvHeadsCount * 128 * 2 * c.n_layers;
   $: vramGB = Number((vramBytes / (1024 * 1024 * 1024)).toFixed(2));
 
-  // --- CARD 5: ROPE STATE ---
-  let ropePos = 100;
-  $: thetaLow  = ropePos * (1 / Math.pow(500000, 0 / headDim));
-  $: thetaMid  = ropePos * (1 / Math.pow(500000, (headDim * 0.25) / headDim));
-  $: thetaHigh = ropePos * (1 / Math.pow(500000, (headDim * 0.48) / headDim));
+  // --- CARD 5: ROPE STATE (FIGURE 1 FROM ROFORMER PAPER) ---
+  let ropePos = 3; // Position m (1 to 6)
+  const basePair = [4.0, 2.5]; // Initial (x1, x2) pair
+  const theta1 = 0.35; // Frequency theta_1
 
-  $: vecLowX  = Math.cos(thetaLow) * 70;
-  $: vecLowY  = Math.sin(thetaLow) * 70;
-  $: vecMidX  = Math.cos(thetaMid) * 70;
-  $: vecMidY  = Math.sin(thetaMid) * 70;
-  $: vecHighX = Math.cos(thetaHigh) * 70;
-  $: vecHighY = Math.sin(thetaHigh) * 70;
+  $: currentAngle = ropePos * theta1;
+  $: rotX1 = Number((basePair[0] * Math.cos(currentAngle) - basePair[1] * Math.sin(currentAngle)).toFixed(2));
+  $: rotX2 = Number((basePair[0] * Math.sin(currentAngle) + basePair[1] * Math.cos(currentAngle)).toFixed(2));
+
+  // SVG Coordinates for d=2 plane
+  $: origSvgX = 110 + basePair[0] * 12;
+  $: origSvgY = 100 - basePair[1] * 12;
+  $: rotSvgX = 110 + rotX1 * 12;
+  $: rotSvgY = 100 - rotX2 * 12;
 
   // --- CARD 6: SWIGLU STATE ---
   let ffnArchChoice: 'SwiGLU' | 'GELU' = 'SwiGLU';
   let gateShift = 0.0;
   const swigluInput = [0.5, -0.2, 0.8, -0.9];
-  const w1_raw = [1.2, -1.8, 0.4, 2.1, -0.9, 1.5, -2.4, 0.7];
-  const w3_raw = [0.9, 0.6, -1.2, 1.4, 0.8, -0.5, 1.1, -0.3];
+  const w1_raw = [1.2, -1.8, 0.4, 2.1, -0.9, 1.5, -2.4, 0.7]; // Gate
+  const w3_raw = [0.9, 0.6, -1.2, 1.4, 0.8, -0.5, 1.1, -0.3]; // Up / Content
   
   function silu(x: number) { return x / (1 + Math.exp(-x)); }
   $: gate_activations = w1_raw.map(v => silu(v + gateShift));
@@ -664,7 +666,7 @@
           </div>
         </div>
 
-        <!-- 1D WAVEFORMS (FIXED UNIFIED SCALE & ZERO OVERFLOW) -->
+        <!-- 1D WAVEFORMS -->
         <div class="rms-waves-container">
           <div class="wave-box">
             <span class="wave-title">1. Raw Input Signal (x) — Unbounded</span>
@@ -806,63 +808,77 @@
   </InteractiveCard>
 
   <!-- ==========================================
-       CARD 5: RE-ENGINEERED ROPE
+       CARD 5: RE-ENGINEERED ROPE (FIGURE 1 FROM PAPER)
        ========================================== -->
   <span id="rope-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="RoPE encodes position by rotating Query and Key feature pairs inside attention before dot-product scores are computed.">
+  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="Modeled after Figure 1 of RoFormer (Su et al., 2021). RoPE encodes position by rotating Query and Key feature pairs in 2D sub-planes before attention is computed.">
     <div class="rope-workspace">
       
+      <!-- CONTROLS & FORMULA -->
       <div class="rope-controls">
         <div class="ctrl-group">
           <div class="lbl-row">
             <span>Token Position (m)</span>
-            <strong style="color: var(--highlight)">Pos = {ropePos}</strong>
+            <strong style="color: var(--highlight)">Pos m = {ropePos}</strong>
           </div>
-          <input type="range" min="0" max="2000" step="1" bind:value={ropePos} class="hl-slider" />
+          <input type="range" min="1" max="6" step="1" bind:value={ropePos} class="hl-slider" />
         </div>
 
         <div class="math-box">
-          <div class="math-title">ROTATION FREQUENCY FORMULA:</div>
+          <div class="math-title">PAPER FORMULA (FIGURE 1):</div>
           <div class="math-eq">θ<sub>i</sub> = 1 / 500,000<sup>2i/d</sup></div>
-          <div class="math-eq">angle = position × θ<sub>i</sub></div>
-          <div class="math-res">Fast rotations encode fine-grained local positions; slow rotations preserve long-range relationships.</div>
+          <div class="math-eq">angle = m · θ<sub>i</sub></div>
+          <div class="math-res">Applied strictly to Query & Key vectors (xq, xk).</div>
         </div>
       </div>
 
-      <!-- 3 MULTI-FREQUENCY WHEELS -->
-      <div class="rope-multi-viz">
-        
+      <!-- FIGURE 1 TOP: d=2 SUB-PLANE 2D ROTATION -->
+      <div class="rope-subplane-box">
         <div class="wheel-box">
-          <span class="wheel-lbl">Dimension Pair #0<br/><small style="color:var(--highlight)">Highest Frequency (Fast)</small></span>
-          <svg viewBox="-90 -90 180 180" class="circle-svg">
-            <circle cx="0" cy="0" r="70" fill="none" stroke="var(--border)" stroke-dasharray="4,4" />
-            <!-- Fixed Position 0 Baseline -->
-            <line x1="0" y1="0" x2="70" y2="0" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2,2" />
-            <line x1="0" y1="0" x2={vecLowX} y2={-vecLowY} stroke="var(--highlight)" stroke-width="3" />
-            <circle cx={vecLowX} cy={-vecLowY} r="5" fill="var(--highlight)" />
-          </svg>
-        </div>
+          <span class="wheel-lbl">2D Sub-Plane Rotation (Pair #1: x₁, x₂)</span>
+          
+          <div class="subplane-svg-and-vals">
+            <svg viewBox="0 0 220 200" class="subplane-svg">
+              <defs>
+                <marker id="arrow-rope-rot" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 2 L 8 5 L 0 8 z" fill="var(--accent)" /></marker>
+              </defs>
 
-        <div class="wheel-box">
-          <span class="wheel-lbl">Dimension Pair #d/4<br/><small style="color:var(--blue)">Medium Frequency</small></span>
-          <svg viewBox="-90 -90 180 180" class="circle-svg">
-            <circle cx="0" cy="0" r="70" fill="none" stroke="var(--border)" stroke-dasharray="4,4" />
-            <line x1="0" y1="0" x2="70" y2="0" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2,2" />
-            <line x1="0" y1="0" x2={vecMidX} y2={-vecMidY} stroke="var(--blue)" stroke-width="3" />
-            <circle cx={vecMidX} cy={-vecMidY} r="5" fill="var(--blue)" />
-          </svg>
-        </div>
+              <!-- Axes x1 and x2 -->
+              <line x1="20" y1="100" x2="200" y2="100" stroke="var(--border)" stroke-width="1.5" />
+              <line x1="110" y1="20" x2="110" y2="180" stroke="var(--border)" stroke-width="1.5" />
+              <text x="195" y="115" class="axis-lbl">x₁</text>
+              <text x="115" y="30" class="axis-lbl">x₂</text>
 
-        <div class="wheel-box">
-          <span class="wheel-lbl">Dimension Pair #d/2-1<br/><small style="color:var(--green)">Lowest Frequency (Slow)</small></span>
-          <svg viewBox="-90 -90 180 180" class="circle-svg">
-            <circle cx="0" cy="0" r="70" fill="none" stroke="var(--border)" stroke-dasharray="4,4" />
-            <line x1="0" y1="0" x2="70" y2="0" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2,2" />
-            <line x1="0" y1="0" x2={vecHighX} y2={-vecHighY} stroke="var(--green)" stroke-width="3" />
-            <circle cx={vecHighX} cy={-vecHighY} r="5" fill="var(--green)" />
-          </svg>
-        </div>
+              <!-- Unrotated Baseline (Pos 0) -->
+              <line x1="110" y1="100" x2={origSvgX} y2={origSvgY} stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3,3" />
+              <circle cx={origSvgX} cy={origSvgY} r="3" fill="var(--muted)" />
+              <text x={origSvgX + 4} y={origSvgY + 12} fill="var(--muted)" font-family="JetBrains Mono" font-size="10">(x₁, x₂)</text>
 
+              <!-- Rotated Vector (x'_1, x'_2) -->
+              <line x1="110" y1="100" x2={rotSvgX} y2={rotSvgY} stroke="var(--accent)" stroke-width="2.5" marker-end="url(#arrow-rope-rot)" />
+              <circle cx={rotSvgX} cy={rotSvgY} r="4" fill="var(--accent)" />
+              <text x={rotSvgX + 4} y={rotSvgY - 6} fill="var(--accent)" font-family="JetBrains Mono" font-size="11" font-weight="700">(x'₁, x'₂)</text>
+
+              <!-- Arc indicating angle m*theta1 -->
+              <path d="M {110 + 25} 100 A 25 25 0 0 0 {110 + 25 * Math.cos(currentAngle)} {100 - 25 * Math.sin(currentAngle)}" fill="none" stroke="var(--highlight)" stroke-width="1.5" />
+              <text x="142" y="90" fill="var(--highlight)" font-family="JetBrains Mono" font-size="10" font-weight="700">m·θ₁</text>
+            </svg>
+
+            <div class="subplane-readout">
+              <div class="readout-row">
+                <span>Original Pair:</span>
+                <strong>[{basePair[0]}, {basePair[1]}]</strong>
+              </div>
+              <div class="readout-row">
+                <span>Rotated Pair (Pos {ropePos}):</span>
+                <strong style="color:var(--accent)">[{rotX1}, {rotX2}]</strong>
+              </div>
+              <div class="proof-insight">
+                Rotates Q & K in 2D sub-planes without altering vector magnitude.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -1203,12 +1219,13 @@
   .vram-note { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
 
   /* ================== ROPE WORKSPACE ================== */
-  .rope-workspace { display: flex; gap: 3rem; align-items: center; justify-content: center; padding: 1rem 0; width: 100%; flex-wrap: wrap; }
-  .rope-controls { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 1.5rem; }
-  .rope-multi-viz { flex: 1.5; display: flex; justify-content: space-around; gap: 1rem; flex-wrap: wrap; }
-  .wheel-box { background: var(--bg); border: 1px stroke var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
-  .wheel-lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; text-align: center; color: var(--text); }
-  .circle-svg { width: 100%; max-width: 140px; overflow: visible; }
+  .rope-workspace { display: flex; gap: 3rem; align-items: flex-start; justify-content: space-between; padding: 1rem 0; width: 100%; flex-wrap: wrap; }
+  .rope-controls { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 1.5rem; }
+  .rope-subplane-box { flex: 1.5; min-width: 340px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .subplane-svg-and-vals { display: flex; gap: 1.5rem; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .subplane-svg { width: 100%; max-width: 220px; height: auto; overflow: visible; }
+  .subplane-readout { display: flex; flex-direction: column; gap: 0.5rem; background: var(--surface2); border: 1px solid var(--border); padding: 1rem; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .readout-row { display: flex; justify-content: space-between; gap: 1rem; color: var(--text); }
 
   /* ================== SWIGLU WORKSPACE ================== */
   .swiglu-workspace { display: flex; flex-direction: column; gap: 2rem; width: 100%; }
