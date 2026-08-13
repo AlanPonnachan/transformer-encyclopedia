@@ -811,7 +811,7 @@
        CARD 5: RE-ENGINEERED ROPE (FIGURE 1 FROM PAPER)
        ========================================== -->
   <span id="rope-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="Modeled after Figure 1 of RoFormer (Su et al., 2021). RoPE encodes position by rotating Query and Key feature pairs in 2D sub-planes before attention is computed.">
+  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="RoPE encodes position by rotating Query and Key feature pairs in 2D sub-planes before attention is computed.">
     <div class="rope-workspace">
       
       <!-- CONTROLS & FORMULA -->
@@ -825,7 +825,6 @@
         </div>
 
         <div class="math-box">
-          <div class="math-title">PAPER FORMULA (FIGURE 1):</div>
           <div class="math-eq">θ<sub>i</sub> = 1 / 500,000<sup>2i/d</sup></div>
           <div class="math-eq">angle = m · θ<sub>i</sub></div>
           <div class="math-res">Applied strictly to Query & Key vectors (xq, xk).</div>
