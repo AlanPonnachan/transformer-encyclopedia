@@ -1,6 +1,7 @@
 <script lang="ts">
   import BlueprintCard from '$lib/components/common/BlueprintCard.svelte';
   import InteractiveCard from '$lib/components/common/InteractiveCard.svelte';
+  import SwiGLUExplorer from '$lib/components/architectures/SwiGLUExplorer.svelte';
   import Matrix from '$lib/atoms/Matrix.svelte';
   import Vector from '$lib/atoms/Vector.svelte';
   import { inspectedCell } from '$lib/stores/diagram';
@@ -887,75 +888,7 @@
        CARD 6: RE-ENGINEERED SWIGLU FFN
        ========================================== -->
   <span id="swiglu-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title="Micro: SwiGLU Feed-Forward Network" subtitle="SwiGLU replaces plain GELU FFNs with a learned multiplicative gate. Narrowing intermediate width matches the parameter budget while vastly improving feature selectivity.">
-    <div class="swiglu-workspace">
-      
-      <!-- BUDGET MATCHING TOGGLE -->
-      <div class="swiglu-header-bar">
-        <div class="budget-toggle">
-          <button class="mode-btn" class:active-mode={ffnArchChoice === 'GELU'} on:click={() => ffnArchChoice = 'GELU'}>
-            Plain GELU FFN (2 Matrices, 4d)
-          </button>
-          <button class="mode-btn" class:active-mode={ffnArchChoice === 'SwiGLU'} on:click={() => ffnArchChoice = 'SwiGLU'}>
-            SwiGLU (3 Matrices, 2.67d — Llama 3)
-          </button>
-        </div>
-
-        <div class="budget-proof-box">
-          {#if ffnArchChoice === 'GELU'}
-            <span>Weight Count: <code>2 × d × 4d = 8d²</code> (~176M params per block) — Single un-gated path.</span>
-          {:else}
-            <span>Weight Count: <code>3 × d × 2.67d ≈ 8d²</code> (~176M params per block) — Matches budget while adding multiplicative gating!</span>
-          {/if}
-        </div>
-      </div>
-
-      <!-- GATE PIPELINE -->
-      <div class="swiglu-pipeline-box">
-        <div class="ctrl-group" style="width: 250px;">
-          <div class="lbl-row">
-            <span>Gate Control Shift</span>
-            <strong style="color: var(--accent)">{gateShift.toFixed(1)}</strong>
-          </div>
-          <input type="range" min="-3" max="3" step="0.1" bind:value={gateShift} class="hl-slider" />
-        </div>
-
-        <div class="gate-branches-flex">
-          <div class="branch-card">
-            <span class="branch-lbl">Gate Projection: W<sub>gate</sub>(x) ➔ SiLU</span>
-            <div class="cells-row">
-              {#each gate_activations as g}
-                <div class="gate-cell" style="background: {heatBg(g)}">{g.toFixed(2)}</div>
-              {/each}
-            </div>
-          </div>
-
-          <div class="mult-symbol">⊗</div>
-
-          <div class="branch-card">
-            <span class="branch-lbl">Content Projection: W<sub>up</sub>(x)</span>
-            <div class="cells-row">
-              {#each w3_raw as u}
-                <div class="gate-cell" style="background: {heatBg(u)}">{u.toFixed(2)}</div>
-              {/each}
-            </div>
-          </div>
-
-          <div class="mult-symbol">➔ W<sub>down</sub> ➔</div>
-
-          <div class="branch-card result-card">
-            <span class="branch-lbl">Down Projection (d=4096)</span>
-            <div class="cells-row">
-              {#each swiglu_down as r}
-                <div class="gate-cell" style="background: {heatBg(r)}">{r.toFixed(2)}</div>
-              {/each}
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </InteractiveCard>
+  <SwiGLUExplorer />
 
   <!-- ==========================================
        CARD 7: CAUSAL MASKING & ATTENTION
