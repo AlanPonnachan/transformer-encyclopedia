@@ -2,8 +2,6 @@
   import BlueprintCard from '$lib/components/common/BlueprintCard.svelte';
   import InteractiveCard from '$lib/components/common/InteractiveCard.svelte';
   import SwiGLUExplorer from '$lib/components/architectures/SwiGLUExplorer.svelte';
-  import Matrix from '$lib/atoms/Matrix.svelte';
-  import Vector from '$lib/atoms/Vector.svelte';
   import { inspectedCell } from '$lib/stores/diagram';
   import { onMount } from 'svelte';
 
@@ -397,7 +395,7 @@
        ========================================== -->
   <span id="embed-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title="Layer 0: Token Embedding" subtitle="How an LLM turns human words into continuous mathematical meaning.">
+  <InteractiveCard title="Token Embedding" subtitle="How an LLM turns human words into continuous mathematical meaning.">
     <div class="embed-interactive-wrapper">
       
       <!-- PRESET SENTENCE SELECTOR -->
@@ -570,7 +568,7 @@
        ========================================== -->
   <span id="rmsnorm-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title="Micro: RMSNorm Activation Stabilizer" subtitle="As data flows through 32 deep residual blocks, numbers can drift. RMSNorm rescales token activations to maintain consistent signal energy.">
+  <InteractiveCard title=" RMSNorm Activation Stabilizer" subtitle="As data flows through 32 deep residual blocks, numbers can drift. RMSNorm rescales token activations to maintain consistent signal energy.">
     <div class="rmsnorm-workspace">
       
       <!-- CONTROLS & EXPLANATION -->
@@ -708,7 +706,7 @@
        ========================================== -->
   <span id="gqa-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title="Micro: Grouped-Query Attention (GQA) & KV Cache" subtitle="Llama 3 shares 1 Key/Value head across 4 Query heads, preventing 128k context windows from overflowing GPU memory.">
+  <InteractiveCard title=" Grouped-Query Attention (GQA) & KV Cache" subtitle="Llama 3 shares 1 Key/Value head across 4 Query heads, preventing 128k context windows from overflowing GPU memory.">
     <div class="gqa-workspace">
       
       <!-- LEFT: HEAD BROADCASTER MAP -->
@@ -812,7 +810,7 @@
        CARD 5: RE-ENGINEERED ROPE (FIGURE 1 FROM PAPER)
        ========================================== -->
   <span id="rope-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title="Micro: RoPE (Rotary Positional Embeddings)" subtitle="RoPE encodes position by rotating Query and Key feature pairs in 2D sub-planes before attention is computed.">
+  <InteractiveCard title=" RoPE (Rotary Positional Embeddings)" subtitle="RoPE encodes position by rotating Query and Key feature pairs in 2D sub-planes before attention is computed.">
     <div class="rope-workspace">
       
       <!-- CONTROLS & FORMULA -->
@@ -894,7 +892,7 @@
        CARD 7: CAUSAL MASKING & ATTENTION
        ========================================== -->
   <span id="causal-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title="Micro: Causal Masking & Attention Matrix" subtitle="Autoregressive models must not look into the future. The upper-triangular -∞ mask blocks future words.">
+  <InteractiveCard title=" Causal Masking & Attention Matrix" subtitle="Autoregressive models must not look into the future. The upper-triangular -∞ mask blocks future words.">
     <div class="causal-workspace">
       
       <div class="causal-matrix-box">
@@ -940,7 +938,7 @@
        CARD 8: OUTPUT PROJECTION & SAMPLING
        ========================================== -->
   <span id="sampling-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title="Micro: Output Projection & Token Sampling" subtitle="Projecting 4,096-d hidden states back to 128,000 logits, then sampling the next word using Temperature & Top-P.">
+  <InteractiveCard title=" Output Projection & Token Sampling" subtitle="Projecting 4,096-d hidden states back to 128,000 logits, then sampling the next word using Temperature & Top-P.">
     <div class="sampling-workspace">
       
       <div class="sampling-controls">
