@@ -131,7 +131,7 @@
               <div class="sandbox-branch">
                 <div class="ctrl-group">
                   <div class="lbl-row">
-                    <span>Gate Logit ($z_0$)</span>
+                    <span>Gate Logit (z<sub>0</sub>)</span>
                     <strong style="color: var(--highlight)">{gateLogit.toFixed(2)}</strong>
                   </div>
                   <input type="range" min="-4" max="4" step="0.1" bind:value={gateLogit} class="slider-gate" />
@@ -154,7 +154,7 @@
               <div class="sandbox-branch">
                 <div class="ctrl-group">
                   <div class="lbl-row">
-                    <span>Up Feature ($u_0$)</span>
+                    <span>Up Feature (u<sub>0</sub>)</span>
                     <strong style="color: var(--blue)">{upFeature.toFixed(2)}</strong>
                   </div>
                   <input type="range" min="-5" max="5" step="0.1" bind:value={upFeature} class="slider-up" />
@@ -186,7 +186,7 @@
             <div class="math-derivation">
               <h3>Llama 3 FFN Dimension Derivation</h3>
               <div class="calc-steps">
-                <div class="step"><span class="lbl">Model dimension ($d$)</span><strong class="val">{d_model}</strong></div>
+                <div class="step"><span class="lbl">Model dimension (d)</span><strong class="val">{d_model}</strong></div>
                 <div class="step op"><span class="lbl">× 4 (Standard FFN ratio)</span><strong class="val">{step1}</strong></div>
                 <div class="step op"><span class="lbl">× 2/3 (SwiGLU budget shrink)</span><strong class="val">{step2}</strong></div>
                 <div class="step op"><span class="lbl">× 1.3 (Llama 3 multiplier)</span><strong class="val">{step3}</strong></div>
@@ -220,11 +220,11 @@
             <div class="silu-sidebar">
               <h3>Why SiLU?</h3>
               <p>The original GLU used a Sigmoid function, which strictly bounds the gate between <code>[0, 1]</code>.</p>
-              <p>SwiGLU replaces it with <strong>SiLU ($z \cdot \sigma(z)$)</strong>. It is not restricted to <code>[0, 1]</code>. It can be negative (pushing features in the opposite direction) and grows linearly for large values.</p>
+              <p>SwiGLU replaces it with <strong>SiLU (z &middot; &sigma;(z))</strong>. It is not restricted to <code>[0, 1]</code>. It can be negative (pushing features in the opposite direction) and grows linearly for large values.</p>
               
               <div class="ctrl-group">
                 <div class="lbl-row">
-                  <span>Input ($z$)</span>
+                  <span>Input (z)</span>
                   <strong style="color: var(--highlight)">{siluZ.toFixed(2)}</strong>
                 </div>
                 <input type="range" min="-4" max="4" step="0.1" bind:value={siluZ} class="slider-gate" />
