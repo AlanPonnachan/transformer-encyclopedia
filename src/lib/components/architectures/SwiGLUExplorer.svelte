@@ -3,6 +3,12 @@
 
   let activeTab = 1;
 
+  // --- TAB 1: ZOOM STATE ---
+  let tab1Zoom = 1;
+  function zoomIn() { tab1Zoom = Math.min(tab1Zoom + 0.15, 2); }
+  function zoomOut() { tab1Zoom = Math.max(tab1Zoom - 0.15, 0.4); }
+  function zoomReset() { tab1Zoom = 1; }
+
   // --- TAB 2: FOLLOW ONE DIMENSION STATE ---
   let gateLogit = 1.5;
   let upFeature = 4.0;
@@ -60,59 +66,76 @@
       <!-- TAB 1: TWO PATHS -->
       {#if activeTab === 1}
         <div class="stage-wrapper tab1">
-          <div class="flow-diagram">
-            <div class="flow-node highlight-box">
-              <span class="micro-label">SAME INPUT</span>
-              <span class="code-font">x [4096]</span>
-            </div>
-            
-            <div class="split-lines">
-              <svg viewBox="0 0 200 40" preserveAspectRatio="none" style="width: 100%; height: 40px; stroke: var(--border); stroke-width: 2; fill: none;">
-                <path d="M 100 0 L 100 20 L 20 20 L 20 40" />
-                <path d="M 100 0 L 100 20 L 180 20 L 180 40" />
-              </svg>
+          
+          <div class="viewport-wrapper">
+            <!-- Floating Zoom Controls -->
+            <div class="zoom-controls">
+              <button class="zoom-btn" on:click={zoomOut} title="Zoom Out">−</button>
+              <button class="zoom-btn reset" on:click={zoomReset} title="Reset">{Math.round(tab1Zoom * 100)}%</button>
+              <button class="zoom-btn" on:click={zoomIn} title="Zoom In">+</button>
             </div>
 
-            <div class="branches">
-              <div class="branch">
-                <div class="flow-box">
-                  <strong>W_gate</strong>
-                  <span class="dim">14336 × 4096</span>
+            <!-- Scrollable Canvas -->
+            <div class="zoom-viewport">
+              <div class="zoom-content" style="transform: scale({tab1Zoom});">
+                
+                <div class="flow-diagram">
+                  <div class="flow-node highlight-box">
+                    <span class="micro-label">SAME INPUT</span>
+                    <span class="code-font">x [4096]</span>
+                  </div>
+                  
+                  <div class="split-lines">
+                    <svg viewBox="0 0 200 40" preserveAspectRatio="none" style="width: 100%; height: 40px; stroke: var(--border); stroke-width: 2; fill: none;">
+                      <path d="M 100 0 L 100 20 L 20 20 L 20 40" />
+                      <path d="M 100 0 L 100 20 L 180 20 L 180 40" />
+                    </svg>
+                  </div>
+
+                  <div class="branches">
+                    <div class="branch">
+                      <div class="flow-box">
+                        <strong>W_gate</strong>
+                        <span class="dim">14336 × 4096</span>
+                      </div>
+                      <div class="arrow">↓</div>
+                      <div class="flow-box"><strong>SiLU</strong></div>
+                    </div>
+                    <div class="branch">
+                      <div class="flow-box">
+                        <strong>W_up</strong>
+                        <span class="dim">14336 × 4096</span>
+                      </div>
+                      <div class="arrow">↓</div>
+                      <div class="flow-box ghost"><em>(no activation)</em></div>
+                    </div>
+                  </div>
+
+                  <div class="merge-section">
+                    <div class="merge-lines">
+                      <svg viewBox="0 0 200 40" preserveAspectRatio="none" style="width: 100%; height: 40px; stroke: var(--border); stroke-width: 2; fill: none;">
+                        <path d="M 20 0 L 20 20 L 100 20 L 100 40" />
+                        <path d="M 180 0 L 180 20 L 100 20 L 100 40" />
+                      </svg>
+                    </div>
+                    <div class="op-node">
+                      <span class="op-sym">⊙</span>
+                      <span class="micro-label">Hadamard Product / Elementwise ×</span>
+                    </div>
+                  </div>
+
+                  <div class="arrow">↓</div>
+                  <div class="flow-box">
+                    <strong>W_down</strong>
+                    <span class="dim">4096 × 14336</span>
+                  </div>
+                  <div class="arrow">↓</div>
+                  <div class="flow-node">
+                    <span class="code-font">output [4096]</span>
+                  </div>
                 </div>
-                <div class="arrow">↓</div>
-                <div class="flow-box"><strong>SiLU</strong></div>
-              </div>
-              <div class="branch">
-                <div class="flow-box">
-                  <strong>W_up</strong>
-                  <span class="dim">14336 × 4096</span>
-                </div>
-                <div class="arrow">↓</div>
-                <div class="flow-box ghost"><em>(no activation)</em></div>
-              </div>
-            </div>
 
-            <div class="merge-section">
-              <div class="merge-lines">
-                <svg viewBox="0 0 200 40" preserveAspectRatio="none" style="width: 100%; height: 40px; stroke: var(--border); stroke-width: 2; fill: none;">
-                  <path d="M 20 0 L 20 20 L 100 20 L 100 40" />
-                  <path d="M 180 0 L 180 20 L 100 20 L 100 40" />
-                </svg>
               </div>
-              <div class="op-node">
-                <span class="op-sym">⊙</span>
-                <span class="micro-label">Hadamard Product / Elementwise ×</span>
-              </div>
-            </div>
-
-            <div class="arrow">↓</div>
-            <div class="flow-box">
-              <strong>W_down</strong>
-              <span class="dim">4096 × 14336</span>
-            </div>
-            <div class="arrow">↓</div>
-            <div class="flow-node">
-              <span class="code-font">output [4096]</span>
             </div>
           </div>
         </div>
@@ -360,4 +383,71 @@
   .graph-svg { width: 100%; height: auto; }
   .axis { stroke: var(--border); stroke-width: 2; }
   .tick-lbl { fill: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+  /* ZOOM VIEWPORT (TAB 1) */
+  .viewport-wrapper {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden; /* Keeps floating controls inside */
+    background: var(--bg);
+  }
+  
+  .zoom-viewport {
+    width: 100%;
+    height: 60vh;
+    min-height: 450px;
+    overflow: auto; /* Allows panning via scrollbars when zoomed in */
+    display: flex;
+    justify-content: center;
+    padding: 3rem 1rem;
+    
+    /* Blueprint grid background */
+    background-size: 20px 20px;
+    background-image: 
+      linear-gradient(to right, var(--border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+    opacity: 0.8;
+  }
+  
+  .zoom-content {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: top center;
+    will-change: transform;
+  }
+
+  .zoom-controls {
+    position: absolute;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    padding: 4px;
+    gap: 2px;
+  }
+  
+  .zoom-btn {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .zoom-btn:hover { background: var(--surface2); color: var(--accent); }
+  .zoom-btn.reset { font-size: 0.75rem; width: 48px; }
 </style>
