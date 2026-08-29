@@ -80,18 +80,22 @@
               <div class="zoom-content" style="transform: scale({tab1Zoom});">
                 
                 <div class="flow-diagram">
+                  <!-- Input Node -->
                   <div class="flow-node highlight-box">
                     <span class="micro-label">SAME INPUT</span>
                     <span class="code-font">x [4096]</span>
                   </div>
                   
-                  <div class="split-lines">
-                    <svg viewBox="0 0 200 40" preserveAspectRatio="none" style="width: 100%; height: 40px; stroke: var(--border); stroke-width: 2; fill: none;">
-                      <path d="M 100 0 L 100 20 L 20 20 L 20 40" />
-                      <path d="M 100 0 L 100 20 L 180 20 L 180 40" />
-                    </svg>
+                  <!-- CSS Split Lines -->
+                  <div class="fork-line">
+                    <div class="fork-stem"></div>
+                    <div class="fork-arms">
+                      <div class="fork-drop"></div>
+                      <div class="fork-drop"></div>
+                    </div>
                   </div>
 
+                  <!-- Parallel Branches -->
                   <div class="branches">
                     <div class="branch">
                       <div class="flow-box">
@@ -101,6 +105,7 @@
                       <div class="arrow">↓</div>
                       <div class="flow-box"><strong>SiLU</strong></div>
                     </div>
+                    
                     <div class="branch">
                       <div class="flow-box">
                         <strong>W_up</strong>
@@ -111,25 +116,31 @@
                     </div>
                   </div>
 
-                  <div class="merge-section">
-                    <div class="merge-lines">
-                      <svg viewBox="0 0 200 40" preserveAspectRatio="none" style="width: 100%; height: 40px; stroke: var(--border); stroke-width: 2; fill: none;">
-                        <path d="M 20 0 L 20 20 L 100 20 L 100 40" />
-                        <path d="M 180 0 L 180 20 L 100 20 L 100 40" />
-                      </svg>
+                  <!-- CSS Merge Lines -->
+                  <div class="fork-line">
+                    <div class="fork-arms bottom-arms">
+                      <div class="fork-drop"></div>
+                      <div class="fork-drop"></div>
                     </div>
-                    <div class="op-node">
-                      <span class="op-sym">⊙</span>
-                      <span class="micro-label">Hadamard Product / Elementwise ×</span>
-                    </div>
+                    <div class="fork-stem"></div>
                   </div>
 
+                  <!-- Hadamard Operator -->
+                  <div class="op-node">
+                    <span class="op-sym">⊙</span>
+                    <span class="micro-label">Hadamard Product / Elementwise ×</span>
+                  </div>
+
+                  <!-- Output Pipeline -->
                   <div class="arrow">↓</div>
+                  
                   <div class="flow-box">
                     <strong>W_down</strong>
                     <span class="dim">4096 × 14336</span>
                   </div>
+                  
                   <div class="arrow">↓</div>
+                  
                   <div class="flow-node">
                     <span class="code-font">output [4096]</span>
                   </div>
@@ -303,20 +314,41 @@
   .code-font { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700; color: var(--text); }
   .micro-label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; display: block; }
   
-  /* TAB 1 */
-  .flow-diagram { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 500px; }
+  /* TAB 1: FLOW DIAGRAM */
+  .flow-diagram { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    width: 100%; 
+    max-width: 800px; 
+  }
+  
   .flow-node { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1.5rem; text-align: center; }
   .highlight-box { border-color: var(--accent); box-shadow: 0 0 15px rgba(99,102,241,0.1); }
-  .split-lines, .merge-lines { width: 60%; height: 40px; }
-  .branches { display: flex; width: 100%; justify-content: space-between; gap: 2rem; }
-  .branch { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  
+  /* Precision CSS Forks */
+  .fork-line { display: flex; flex-direction: column; align-items: center; width: 100%; }
+  .fork-stem { width: 2px; height: 25px; background: var(--border); }
+  .fork-arms { display: flex; justify-content: space-between; width: 50%; border-top: 2px solid var(--border); }
+  .fork-arms.bottom-arms { border-top: none; border-bottom: 2px solid var(--border); }
+  .fork-drop { width: 2px; height: 25px; background: var(--border); }
+  
+  /* Branches */
+  .branches { display: flex; width: 100%; }
+  .branch { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 0 1rem; }
+  
   .flow-box { background: var(--surface2); border: 1px solid var(--border); padding: 0.75rem 1rem; border-radius: 6px; text-align: center; width: 100%; max-width: 200px; display: flex; flex-direction: column; gap: 4px; }
   .flow-box strong { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; color: var(--text); }
   .flow-box .dim { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); }
   .flow-box.ghost { opacity: 0.6; font-style: italic; background: var(--bg); border-style: dashed; }
-  .merge-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
-  .op-node { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
-  .op-sym { background: var(--surface); border: 2px solid var(--accent); color: var(--accent); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.5rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+  
+  /* Operator Node */
+  .op-node { display: flex; flex-direction: column; align-items: center; margin-top: -2px; }
+  .op-sym { background: var(--surface); border: 2px solid var(--accent); color: var(--accent); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.5rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; position: relative; z-index: 2; }
+  .op-node .micro-label { margin-top: 0.75rem; text-align: center; }
+
+  /* Zoom Viewport Adjustments */
+  .zoom-viewport { align-items: flex-start; /* Prevents top cutoff when zoomed in */ }
 
   /* TAB 2 */
   .sandbox-container { display: flex; flex-direction: column; width: 100%; max-width: 600px; align-items: center; }
@@ -397,17 +429,16 @@
     width: 100%;
     height: 60vh;
     min-height: 450px;
-    overflow: auto; /* Allows panning via scrollbars when zoomed in */
+    overflow: auto; 
     display: flex;
     justify-content: center;
+    align-items: flex-start; 
     padding: 3rem 1rem;
     
-    /* Blueprint grid background */
-    background-size: 20px 20px;
+    background-size: 10px 10px;
     background-image: 
-      linear-gradient(to right, var(--border) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
-    opacity: 0.8;
+      linear-gradient(to right, rgba(150, 150, 150, 0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(150, 150, 150, 0.08) 1px, transparent 1px);
   }
   
   .zoom-content {
