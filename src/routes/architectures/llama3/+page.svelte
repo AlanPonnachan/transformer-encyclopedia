@@ -4,6 +4,7 @@
   import SwiGLUExplorer from '$lib/components/architectures/SwiGLUExplorer.svelte';
   import { inspectedCell } from '$lib/stores/diagram';
   import { onMount } from 'svelte';
+  import SamplingExplorer from '$lib/components/architectures/SamplingExplorer.svelte';
 
   const configs = {
     '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: '128k' },
@@ -169,32 +170,6 @@
     [0.1, 0.2, 0.3, 0.3, 0.1]
   ];
 
-  // --- CARD 8: SAMPLING STATE ---
-  let temperature = 0.7;
-  let topP = 0.90;
-  const candidateTokens = [
-    { word: "ruled", rawLogit: 8.5 },
-    { word: "governed", rawLogit: 7.2 },
-    { word: "lived", rawLogit: 5.8 },
-    { word: "spoke", rawLogit: 4.1 },
-    { word: "banana", rawLogit: 0.2 }
-  ];
-
-  $: scaledExp = candidateTokens.map(t => Math.exp(t.rawLogit / Math.max(0.01, temperature)));
-  $: expSum = scaledExp.reduce((a, b) => a + b, 0);
-  $: probs = candidateTokens.map((t, i) => ({
-    ...t,
-    prob: scaledExp[i] / expSum
-  }));
-
-  $: sortedProbs = [...probs].sort((a, b) => b.prob - a.prob);
-  $: cumSumList = (() => {
-    let acc = 0;
-    return sortedProbs.map(p => {
-      acc += p.prob;
-      return { ...p, cumSum: acc, isKept: acc <= topP || acc - p.prob < topP };
-    });
-  })();
 
   onMount(() => inspectedCell.set(null));
 
@@ -938,49 +913,7 @@
        CARD 8: OUTPUT PROJECTION & SAMPLING
        ========================================== -->
   <span id="sampling-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
-  <InteractiveCard title=" Output Projection & Token Sampling" subtitle="Projecting 4,096-d hidden states back to 128,000 logits, then sampling the next word using Temperature & Top-P.">
-    <div class="sampling-workspace">
-      
-      <div class="sampling-controls">
-        <div class="ctrl-group">
-          <div class="lbl-row">
-            <span>Temperature Dial (T)</span>
-            <strong style="color: var(--highlight)">{temperature.toFixed(2)}</strong>
-          </div>
-          <input type="range" min="0.05" max="2.0" step="0.05" bind:value={temperature} class="hl-slider" />
-          <span class="ctrl-hint">Low T = Sharp & Deterministic | High T = Flat & Random</span>
-        </div>
-
-        <div class="ctrl-group">
-          <div class="lbl-row">
-            <span>Top-P (Nucleus Cutoff)</span>
-            <strong style="color: var(--accent)">{topP.toFixed(2)}</strong>
-          </div>
-          <input type="range" min="0.1" max="1.0" step="0.05" bind:value={topP} class="blue-slider" />
-          <span class="ctrl-hint">Cuts off tail words once cumulative probability hits {topP}.</span>
-        </div>
-      </div>
-
-      <div class="sampling-bars-container">
-        <h4>Next Token Candidate Probabilities:</h4>
-        <div class="cand-bars">
-          {#each cumSumList as item}
-            <div class="cand-row" class:guillotined={!item.isKept}>
-              <span class="cand-word">{item.word}</span>
-              <div class="bar-track">
-                <div class="bar-fill" style="width: {item.prob * 100}%" class:kept-fill={item.isKept}></div>
-              </div>
-              <span class="cand-pct">{(item.prob * 100).toFixed(1)}%</span>
-              {#if !item.isKept}
-                <span class="sliced-tag">Sliced by Top-P</span>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      </div>
-
-    </div>
-  </InteractiveCard>
+  <SamplingExplorer />
 
 </div>
 
