@@ -898,7 +898,7 @@
       </div>
 
       <div class="causal-info">
-        <h4>Row Spotlight: "{sampleSentence[selectedTokenRow]}"</h4>
+        <h4>Row : "{sampleSentence[selectedTokenRow]}"</h4>
         <p>
           Token <code>"{sampleSentence[selectedTokenRow]}"</code> can only attend to past tokens:
           <strong>[{sampleSentence.slice(0, selectedTokenRow + 1).join(', ')}]</strong>.

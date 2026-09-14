@@ -214,7 +214,7 @@
 </script>
 
 <InteractiveCard 
-  title="Micro: Output Sampling & Decoding Dynamics" 
+  title="Output Sampling & Decoding Dynamics" 
   subtitle="Autoregressive models generate one word at a time. Temperature shapes probability entropy, while Nucleus (Top-p) truncation dynamically protects against hallucinations without starving open-ended contexts."
 >
   <div class="sampling-explorer">
@@ -222,8 +222,8 @@
     <!-- TABS NAVIGATION -->
     <div class="tabs-header">
       <button class="tab-btn" class:active={activeTab === 1} on:click={() => activeTab = 1}>01 - Temperature & Entropy</button>
-      <button class="tab-btn" class:active={activeTab === 2} on:click={() => activeTab = 2}>02 - The Top-K Dilemma</button>
-      <button class="tab-btn" class:active={activeTab === 3} on:click={() => activeTab = 3}>03 - Top-p (Nucleus) Adaptability</button>
+      <button class="tab-btn" class:active={activeTab === 2} on:click={() => activeTab = 2}>02 - Top-K</button>
+      <button class="tab-btn" class:active={activeTab === 3} on:click={() => activeTab = 3}>03 - Top-p (Nucleus) </button>
       <button class="tab-btn" class:active={activeTab === 4} on:click={() => activeTab = 4}>04 - Full Pipeline & Dice Roll</button>
     </div>
 
@@ -296,7 +296,7 @@
         </div>
 
       <!-- ==========================================
-           TAB 2: THE TOP-K DILEMMA
+           TAB 2: THE TOP-K
            ========================================== -->
       {:else if activeTab === 2}
         <div class="stage-wrapper tab2">
