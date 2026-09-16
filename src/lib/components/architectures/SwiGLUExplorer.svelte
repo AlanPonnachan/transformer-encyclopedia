@@ -50,7 +50,7 @@
 
 </script>
 
-<InteractiveCard title="Micro: SwiGLU Feed-Forward Network" subtitle="Adds a learned multiplicative interaction between two projections. Replaces plain GELU FFNs by computing two parallel branches over the same token and combining them.">
+<InteractiveCard title="SwiGLU Feed-Forward Network" subtitle="Adds a learned multiplicative interaction between two projections. Replaces plain GELU FFNs by computing two parallel branches over the same token and combining them.">
   <div class="swiglu-explorer">
     
     <!-- TABS HEADER -->

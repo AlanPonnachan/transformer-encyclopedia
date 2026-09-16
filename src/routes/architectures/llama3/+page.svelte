@@ -191,7 +191,7 @@
     <div class="breadcrumb">ARCHITECTURES › LLAMA 3</div>
     <div class="header-split">
       <div>
-        <h1>Llama 3 Engine</h1>
+        <h1>Llama 3</h1>
         <p>Bottom-to-top data pipeline. Hover for exact PyTorch shapes. Click to deep-dive.</p>
       </div>
       <div class="config-selector">
