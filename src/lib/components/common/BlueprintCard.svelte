@@ -12,10 +12,6 @@
       <h2>{title}</h2>
       {#if subtitle}<p class="subtitle">{subtitle}</p>{/if}
     </div>
-    <div class="tech-deco">
-      <span class="crosshair">+</span>
-      <span class="id-tag">SEC-{id.toUpperCase()}</span>
-    </div>
   </header>
   
   <div class="card-body">

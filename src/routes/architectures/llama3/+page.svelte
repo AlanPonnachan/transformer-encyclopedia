@@ -191,8 +191,8 @@
     <div class="breadcrumb">ARCHITECTURES › LLAMA 3</div>
     <div class="header-split">
       <div>
-        <h1>Llama 3</h1>
-        <p>Bottom-to-top data pipeline. Hover for exact PyTorch shapes. Click to deep-dive.</p>
+        <h1>Llama 3 Architecture</h1>
+        <p>Interactive dataflow from input tokens to output logits. Hover over layers to inspect tensor dimensions, or click to explore individual mechanisms.</p>
       </div>
       <div class="config-selector">
         <span>Model Size:</span>
@@ -207,7 +207,7 @@
   <!-- ==========================================
        CARD 1: MACRO DATA FLOW (TELEMETRY HUD)
        ========================================== -->
-  <BlueprintCard id="llama3-macro" title="Macro View" subtitle="Hover over the components to intercept the telemetry. The dashboard will follow you as you scroll.">
+  <BlueprintCard id="llama3-macro" title="Architecture Overview" subtitle="Trace activations through the model. Hover over any block to inspect PyTorch tensor shapes and operations.">
     <div class="macro-layout">
       <!-- LEFT COLUMN: The Diagram -->
       <div class="macro-diagram">
@@ -301,21 +301,20 @@
         </svg>
       </div>
       
-      <!-- RIGHT COLUMN: Deep Spec Telemetry HUD -->
+      <!-- RIGHT COLUMN: Layer Info -->
       <div class="macro-hud">
         <div class="telemetry-hud" class:active={hoveredNode}>
           <div class="hud-header">
-            <span class="hud-title">TELEMETRY</span>
-            <span class="hud-status">{hoveredNode ? 'ACTIVE' : 'STANDBY'}</span>
+            <span class="hud-title">Layer Info</span>
           </div>
           
           <div class="hud-content">
             {#if !hoveredNode}
               <div class="hud-empty">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.5rem"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <br/>Hover over a module to intercept exact tensor specifications and PyTorch operations.
+                Hover over any block in the diagram to see its dimensions and operations.
               </div>
             {:else if hoveredNode === 'embed'}
+              <div class="data-group"><span class="lbl">MODULE</span><strong class="val">VocabParallelEmbedding</strong></div>
               <div class="data-group"><span class="lbl">MODULE</span><strong class="val">VocabParallelEmbedding</strong></div>
               <div class="data-group"><span class="lbl">SHAPE (IN → OUT)</span><span class="tensor">[bsz, seq] → [bsz, seq, {c.dim}]</span></div>
               <div class="data-group"><span class="lbl">PARAMETERS</span><span class="val param">{c.vocab_size} × {c.dim}</span></div>
@@ -937,9 +936,28 @@
   .macro-hud { position: sticky; top: 80px; align-self: flex-start; width: 380px; flex-shrink: 0; z-index: 50; }
   .telemetry-hud { width: 100%; background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.15); transition: border-color 0.3s, box-shadow 0.3s; }
   .telemetry-hud.active { border-color: var(--accent); box-shadow: 0 20px 50px rgba(99,102,241,0.2); }
-  .hud-header { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.5rem; background: var(--surface2); border-bottom: 1px solid var(--border); }
-  .hud-title { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; color: var(--text); letter-spacing: 0.1em; }
-  .hud-status { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; background: rgba(99,102,241,0.15); color: var(--accent); font-weight: 600; }
+  .hud-header { 
+    display: flex; 
+    align-items: center; 
+    padding: 0.85rem 1.25rem; 
+    background: var(--surface2); 
+    border-bottom: 1px solid var(--border); 
+  }
+  .hud-title { 
+    font-family: 'Space Grotesk', sans-serif; 
+    font-size: 0.85rem; 
+    font-weight: 600; 
+    color: var(--text); 
+  }
+  .hud-empty { 
+    font-family: 'Space Grotesk', sans-serif; 
+    font-size: 0.85rem; 
+    color: var(--muted); 
+    line-height: 1.5; 
+    text-align: center; 
+    margin: auto 0; 
+    padding: 2rem 1rem; 
+  }
   .telemetry-hud:not(.active) .hud-status { background: var(--bg); color: var(--muted); }
   .hud-content { padding: 1.5rem; min-height: 250px; display: flex; flex-direction: column; gap: 1.2rem; }
   .hud-empty { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--muted); font-style: italic; text-align: center; margin: auto; opacity: 0.7; }
