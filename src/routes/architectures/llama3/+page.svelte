@@ -369,12 +369,12 @@
        ========================================== -->
   <span id="embed-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title="Token Embedding" subtitle="How an LLM turns human words into continuous mathematical meaning.">
+  <InteractiveCard title="Token Embedding" subtitle="How an LLM turns words into continuous mathematical meaning.">
     <div class="embed-interactive-wrapper">
       
       <!-- PRESET SENTENCE SELECTOR -->
       <div class="prompt-bar">
-        <span class="prompt-label">Select Example Context:</span>
+        <span class="prompt-label">Select Example:</span>
         <div class="preset-chips">
           {#each presetSentences as p, i}
             <button 
@@ -407,7 +407,6 @@
               >
                 <div class="tok-front">
                   <span class="tok-text">"{tok.word}"</span>
-                  <span class="tok-sub">Click to inspect</span>
                 </div>
                 <div class="tok-back">
                   <span class="tok-id">ID: {tok.id}</span>
@@ -538,18 +537,18 @@
   </InteractiveCard>
 
   <!-- ==========================================
-       CARD 3: RMSNORM STABILIZER
+       CARD 3: RMSNORM 
        ========================================== -->
   <span id="rmsnorm-card" style="display:block; margin-top:-50px; padding-top:50px;"></span>
   
-  <InteractiveCard title=" RMSNorm Activation Stabilizer" subtitle="As data flows through 32 deep residual blocks, numbers can drift. RMSNorm rescales token activations to maintain consistent signal energy.">
+  <InteractiveCard title=" RMSNorm" subtitle="As data flows through 32 deep residual blocks, numbers can drift. RMSNorm rescales token activations to maintain consistent signal energy.">
     <div class="rmsnorm-workspace">
       
       <!-- CONTROLS & EXPLANATION -->
       <div class="rms-controls">
         <div class="ctrl-group">
           <div class="lbl-row">
-            <span>Simulate Outlier Noise (Spike)</span>
+            <span>Outlier Noise (Spike)</span>
             <strong style="color: var(--highlight)">{noiseLevel.toFixed(1)}x</strong>
           </div>
           <input type="range" min="0" max="5" step="0.1" bind:value={noiseLevel} class="hl-slider" />
