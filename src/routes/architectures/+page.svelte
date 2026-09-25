@@ -1,97 +1,102 @@
 <script lang="ts">
   import { base } from '$app/paths';
 
-  interface ArchitectureSpec {
+  interface ModelSpec {
     id: string;
     name: string;
     org: string;
     year: number;
-    topology: 'Dense' | 'MoE';
-    summary: string;
-    pillars: {
-      attention: { type: string; detail: string };
-      ffn: { type: string; detail: string };
-      norm: { type: string; detail: string };
-      position: { type: string; detail: string };
-    };
-    referenceShape: {
+    topology: 'Dense' | 'Sparse MoE';
+    attention: {
+      code: 'GQA' | 'MLA' | 'MHA' | 'Hybrid GQA';
       label: string;
+      detail: string;
+    };
+    ffn: {
+      code: 'SwiGLU' | 'DeepSeekMoE' | 'Top-2 MoE' | 'GeGLU' | 'Dense GELU';
+      label: string;
+      detail: string;
+    };
+    norm: {
+      code: 'RMSNorm' | 'LayerNorm' | 'Dual RMSNorm';
+      label: string;
+      detail: string;
+    };
+    position: {
+      code: 'RoPE' | 'Decoupled RoPE' | 'Absolute' | 'ALiBi';
+      label: string;
+      theta: string;
+      context: string;
+    };
+    referenceScale: {
+      config: string;
       layers: number;
       dim: number;
       heads: number;
       vocab: string;
     };
-    status: 'interactive' | 'spec_sheet';
+    hasInteractive: boolean;
     route?: string;
+    notes: string;
   }
 
-  const architectures: ArchitectureSpec[] = [
+  const modelMatrix: ModelSpec[] = [
     {
       id: 'llama3',
       name: 'Llama 3',
       org: 'Meta',
       year: 2024,
       topology: 'Dense',
-      summary: 'The modern open-weights reference recipe: Pre-RMSNorm, ubiquitous GQA, and SwiGLU with untied 128k embeddings.',
-      pillars: {
-        attention: { type: 'GQA', detail: '4:1 Head Share (32 Q : 8 KV)' },
-        ffn: { type: 'SwiGLU', detail: '14,336-d (~1.3x 2/3 ratio, 3 matrices)' },
-        norm: { type: 'RMSNorm', detail: 'Pre-norm (eps = 1e-5, no bias)' },
-        position: { type: 'RoPE', detail: 'theta = 500,000 (128k native ctx)' }
-      },
-      referenceShape: {
-        label: '8B Base',
-        layers: 32,
-        dim: 4096,
-        heads: 32,
-        vocab: '128k'
-      },
-      status: 'interactive',
-      route: '/architectures/llama3'
+      attention: { code: 'GQA', label: 'GQA (4:1)', detail: '32 Q : 8 KV heads (head_dim=128)' },
+      ffn: { code: 'SwiGLU', label: 'SwiGLU', detail: '14,336-d (~1.3x 2/3 ratio, 3 matrices)' },
+      norm: { code: 'RMSNorm', label: 'Pre-RMSNorm', detail: 'eps = 1e-5 (No mean centering or bias)' },
+      position: { code: 'RoPE', label: 'RoPE', theta: '500,000', context: '128k' },
+      referenceScale: { config: '8B Base', layers: 32, dim: 4096, heads: 32, vocab: '128k' },
+      hasInteractive: true,
+      route: '/architectures/llama3',
+      notes: 'The industry-standard open-weights recipe. Unifies 4:1 GQA across all scales and scales context to 128k with theta=500k.'
     },
     {
       id: 'deepseek-v3',
       name: 'DeepSeek-V3',
       org: 'DeepSeek',
       year: 2024,
-      topology: 'MoE',
-      summary: 'Extreme throughput architecture combining Multi-Head Latent Attention (MLA) for minimal KV cache with fine-grained 256-expert routing.',
-      pillars: {
-        attention: { type: 'MLA', detail: 'Low-rank compressed KV (576-d latent)' },
-        ffn: { type: 'DeepSeekMoE', detail: '256 routed + 1 shared (8 active per token)' },
-        norm: { type: 'RMSNorm', detail: 'Pre-norm (eps = 1e-6)' },
-        position: { type: 'Decoupled RoPE', detail: 'NoPE (512-d) + RoPE (64-d)' }
-      },
-      referenceShape: {
-        label: '671B (37B active)',
-        layers: 61,
-        dim: 7168,
-        heads: 128,
-        vocab: '129k'
-      },
-      status: 'spec_sheet'
+      topology: 'Sparse MoE',
+      attention: { code: 'MLA', label: 'MLA (Latent)', detail: 'Low-rank KV projection into 576-d latent space' },
+      ffn: { code: 'DeepSeekMoE', label: 'DeepSeekMoE', detail: '256 routed + 1 shared exp (8 active per token)' },
+      norm: { code: 'RMSNorm', label: 'Pre-RMSNorm', detail: 'eps = 1e-6' },
+      position: { code: 'Decoupled RoPE', label: 'Decoupled RoPE', theta: '10,000', context: '128k' },
+      referenceScale: { config: '671B Total (37B Active)', layers: 61, dim: 7168, heads: 128, vocab: '129k' },
+      hasInteractive: false,
+      notes: 'Radically compresses KV cache memory overhead by ~93% via Multi-Head Latent Attention. Uses fine-grained expert segmentation.'
     },
     {
       id: 'mixtral-8x7b',
       name: 'Mixtral 8x7B',
       org: 'Mistral AI',
       year: 2023,
-      topology: 'MoE',
-      summary: 'Sparse mixture-of-experts model deploying top-2 token routing across 8 SwiGLU expert feed-forward blocks with grouped-query attention.',
-      pillars: {
-        attention: { type: 'GQA', detail: '4:1 Head Share (32 Q : 8 KV)' },
-        ffn: { type: 'Top-2 MoE', detail: '8 experts per layer (2 active per token)' },
-        norm: { type: 'RMSNorm', detail: 'Pre-norm (eps = 1e-5)' },
-        position: { type: 'RoPE', detail: 'theta = 1,000,000 (32k native ctx)' }
-      },
-      referenceShape: {
-        label: '46.7B (12.9B active)',
-        layers: 32,
-        dim: 4096,
-        heads: 32,
-        vocab: '32k'
-      },
-      status: 'spec_sheet'
+      topology: 'Sparse MoE',
+      attention: { code: 'GQA', label: 'GQA (4:1)', detail: '32 Q : 8 KV heads (head_dim=128)' },
+      ffn: { code: 'Top-2 MoE', label: 'Top-2 MoE', detail: '8 SwiGLU experts per layer (2 routed per token)' },
+      norm: { code: 'RMSNorm', label: 'Pre-RMSNorm', detail: 'eps = 1e-5' },
+      position: { code: 'RoPE', label: 'RoPE', theta: '1,000,000', context: '32k' },
+      referenceScale: { config: '46.7B Total (12.9B Active)', layers: 32, dim: 4096, heads: 32, vocab: '32k' },
+      hasInteractive: false,
+      notes: 'The landmark sparse architecture proving routing across SwiGLU expert feed-forward blocks maintains dense-level quality with 3x faster inference.'
+    },
+    {
+      id: 'qwen2-5',
+      name: 'Qwen 2.5',
+      org: 'Alibaba',
+      year: 2024,
+      topology: 'Dense',
+      attention: { code: 'GQA', label: 'GQA (4:1)', detail: '28 Q : 4 KV heads (7B) / 64 Q : 8 KV (72B)' },
+      ffn: { code: 'SwiGLU', label: 'SwiGLU', detail: '18,944-d expansion for 7B' },
+      norm: { code: 'RMSNorm', label: 'Pre-RMSNorm', detail: 'eps = 1e-6' },
+      position: { code: 'RoPE', label: 'RoPE', theta: '1,000,000', context: '128k' },
+      referenceScale: { config: '7B Base', layers: 28, dim: 3584, heads: 28, vocab: '152k' },
+      hasInteractive: false,
+      notes: 'Combines dual-chunk attention with 1M base RoPE. Features an ultra-wide intermediate dimension in its SwiGLU FFN.'
     },
     {
       id: 'gemma2',
@@ -99,74 +104,105 @@
       org: 'Google',
       year: 2024,
       topology: 'Dense',
-      summary: 'Dense transformer alternating local sliding-window and global attention with logit soft-capping and dual pre/post normalization.',
-      pillars: {
-        attention: { type: 'Hybrid GQA', detail: 'Alternates 4k sliding window & global' },
-        ffn: { type: 'GeGLU', detail: 'Approx. 3.5x expansion (GELU gated)' },
-        norm: { type: 'RMSNorm', detail: 'Pre-norm + Post-norm dual scaling' },
-        position: { type: 'RoPE', detail: 'theta = 10,000 (8k native ctx)' }
-      },
-      referenceShape: {
-        label: '9B Base',
-        layers: 42,
-        dim: 3584,
-        heads: 16,
-        vocab: '256k'
-      },
-      status: 'spec_sheet'
+      attention: { code: 'Hybrid GQA', label: 'Hybrid GQA', detail: 'Alternates 4k local sliding-window & 8k global GQA' },
+      ffn: { code: 'GeGLU', label: 'GeGLU', detail: 'Approx 3.5x expansion (GELU-activated gate)' },
+      norm: { code: 'Dual RMSNorm', label: 'Dual RMSNorm', detail: 'Pre-norm + Post-norm scaling in every block' },
+      position: { code: 'RoPE', label: 'RoPE', theta: '10,000', context: '8k' },
+      referenceScale: { config: '9B Base', layers: 42, dim: 3584, heads: 16, vocab: '256k' },
+      hasInteractive: false,
+      notes: 'Introduces dual pre-and-post RMSNorm scaling around blocks and logit soft-capping to stabilize deep gradients.'
+    },
+    {
+      id: 'gpt2',
+      name: 'GPT-2',
+      org: 'OpenAI',
+      year: 2019,
+      topology: 'Dense',
+      attention: { code: 'MHA', label: 'MHA (1:1)', detail: 'Full Multi-Head Attention without KV sharing' },
+      ffn: { code: 'Dense GELU', label: 'Standard GELU', detail: '2 matrices (4d intermediate = 6400)' },
+      norm: { code: 'LayerNorm', label: 'Pre-LayerNorm', detail: 'Standard LayerNorm with mean subtraction & variance' },
+      position: { code: 'Absolute', label: 'Learned Abs', theta: 'None', context: '1024' },
+      referenceScale: { config: '1.5B XL', layers: 48, dim: 1600, heads: 25, vocab: '50k' },
+      hasInteractive: false,
+      notes: 'The historical classical baseline. Illustrates why modern LLMs abandoned learned absolute embeddings, LayerNorm, and unshared MHA.'
     }
   ];
 
-  // Filtering State
+  // Filtering & Search
   let searchQuery = '';
-  let selectedTopology: 'All' | 'Dense' | 'MoE' = 'All';
-  let selectedAttention: 'All' | 'GQA' | 'MLA' = 'All';
+  let selectedTopology: 'All' | 'Dense' | 'Sparse MoE' = 'All';
+  let selectedAttention: 'All' | 'GQA' | 'MLA' | 'MHA' = 'All';
 
-  $: filteredArchitectures = architectures.filter(arch => {
-    // Search matching
+  // Cross-Highlighting State
+  let activeHighlight: {
+    category: 'topology' | 'attention' | 'ffn' | 'norm' | 'position';
+    code: string;
+  } | null = null;
+
+  function setHighlight(category: 'topology' | 'attention' | 'ffn' | 'norm' | 'position', code: string) {
+    activeHighlight = { category, code };
+  }
+  function clearHighlight() {
+    activeHighlight = null;
+  }
+
+  // Selected Model Drawer
+  let selectedModel: ModelSpec | null = null;
+  function openModel(model: ModelSpec) {
+    selectedModel = model;
+  }
+  function closeDrawer() {
+    selectedModel = null;
+  }
+
+  $: filteredMatrix = modelMatrix.filter(m => {
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch = !q || 
-      arch.name.toLowerCase().includes(q) ||
-      arch.org.toLowerCase().includes(q) ||
-      arch.summary.toLowerCase().includes(q) ||
-      arch.pillars.attention.type.toLowerCase().includes(q) ||
-      arch.pillars.ffn.type.toLowerCase().includes(q) ||
-      arch.pillars.position.type.toLowerCase().includes(q);
+      m.name.toLowerCase().includes(q) ||
+      m.org.toLowerCase().includes(q) ||
+      m.attention.code.toLowerCase().includes(q) ||
+      m.ffn.code.toLowerCase().includes(q) ||
+      m.norm.code.toLowerCase().includes(q) ||
+      m.position.code.toLowerCase().includes(q);
 
-    // Topology filter
-    const matchesTopology = selectedTopology === 'All' || arch.topology === selectedTopology;
-
-    // Attention filter
-    const matchesAttention = selectedAttention === 'All' || arch.pillars.attention.type.includes(selectedAttention);
+    const matchesTopology = selectedTopology === 'All' || m.topology === selectedTopology;
+    const matchesAttention = selectedAttention === 'All' || m.attention.code.includes(selectedAttention);
 
     return matchesSearch && matchesTopology && matchesAttention;
   });
 </script>
 
 <svelte:head>
-  <title>Architectures Catalog — Transformer Encyclopedia</title>
+  <title>Architecture Matrix — Transformer Encyclopedia</title>
 </svelte:head>
 
-<div class="page-container">
-  
-  <!-- PAGE HEADER -->
+<div class="matrix-page">
+
+  <!-- HEADER -->
   <header class="page-header">
-    <div class="breadcrumb">INDEX › ARCHITECTURES</div>
-    <div class="header-content">
-      <h1>Model Architectures</h1>
-      <p>
-        Standardized technical blueprints, parameter topologies, and tensor specifications across modern foundation model families.
-      </p>
+    <div class="breadcrumb">FOUNDATION ARCHITECTURES › MATRIX</div>
+    <div class="header-main">
+      <div>
+        <h1>The Architecture Matrix</h1>
+        <p>
+          A cross-cutting specification of modern foundation model topologies. Hover over any mechanism pill to cross-reference every model implementing that primitive. Click a row to open its full technical dossier.
+        </p>
+      </div>
+
+      <div class="legend-box">
+        <span class="legend-item"><span class="dot-interactive">●</span> Interactive Walkthrough</span>
+        <span class="legend-item"><span class="dot-spec">○</span> Technical Spec Dossier</span>
+      </div>
     </div>
   </header>
 
-  <!-- FILTER & SEARCH BAR -->
-  <section class="toolbar-section">
-    <div class="search-box">
-      <span class="search-prompt">&gt;</span>
+  <!-- CONTROLS & FILTER TOOLBAR -->
+  <div class="matrix-toolbar">
+    <div class="search-field">
+      <span class="cli-prompt">&gt;</span>
       <input 
         type="text" 
-        placeholder="Search architectures, mechanisms (SwiGLU, MLA, RoPE), orgs..." 
+        placeholder="Filter by model, org, or primitive (e.g. SwiGLU, MLA, RoPE)..." 
         bind:value={searchQuery}
         class="search-input"
       />
@@ -175,133 +211,229 @@
       {/if}
     </div>
 
-    <div class="filters-row">
-      <div class="filter-group">
-        <span class="filter-lbl">Topology:</span>
-        <div class="pills-track">
-          <button class="filter-pill" class:active={selectedTopology === 'All'} on:click={() => selectedTopology = 'All'}>All</button>
-          <button class="filter-pill" class:active={selectedTopology === 'Dense'} on:click={() => selectedTopology = 'Dense'}>Dense</button>
-          <button class="filter-pill" class:active={selectedTopology === 'MoE'} on:click={() => selectedTopology = 'MoE'}>MoE</button>
-        </div>
+    <div class="filter-controls">
+      <div class="filter-pill-group">
+        <span class="group-label">TOPOLOGY:</span>
+        <button class="pill" class:active={selectedTopology === 'All'} on:click={() => selectedTopology = 'All'}>All</button>
+        <button class="pill" class:active={selectedTopology === 'Dense'} on:click={() => selectedTopology = 'Dense'}>Dense</button>
+        <button class="pill" class:active={selectedTopology === 'Sparse MoE'} on:click={() => selectedTopology = 'Sparse MoE'}>Sparse MoE</button>
       </div>
 
-      <div class="filter-group">
-        <span class="filter-lbl">Attention:</span>
-        <div class="pills-track">
-          <button class="filter-pill" class:active={selectedAttention === 'All'} on:click={() => selectedAttention = 'All'}>All</button>
-          <button class="filter-pill" class:active={selectedAttention === 'GQA'} on:click={() => selectedAttention = 'GQA'}>GQA</button>
-          <button class="filter-pill" class:active={selectedAttention === 'MLA'} on:click={() => selectedAttention = 'MLA'}>MLA</button>
-        </div>
+      <div class="filter-pill-group">
+        <span class="group-label">ATTENTION:</span>
+        <button class="pill" class:active={selectedAttention === 'All'} on:click={() => selectedAttention = 'All'}>All</button>
+        <button class="pill" class:active={selectedAttention === 'GQA'} on:click={() => selectedAttention = 'GQA'}>GQA</button>
+        <button class="pill" class:active={selectedAttention === 'MLA'} on:click={() => selectedAttention = 'MLA'}>MLA</button>
+        <button class="pill" class:active={selectedAttention === 'MHA'} on:click={() => selectedAttention = 'MHA'}>MHA</button>
       </div>
 
-      <div class="results-count">
-        Showing <strong>{filteredArchitectures.length}</strong> of {architectures.length}
-      </div>
+      {#if activeHighlight}
+        <div class="cross-indicator">
+          <span>Highlighting:</span>
+          <strong>{activeHighlight.code}</strong>
+        </div>
+      {/if}
     </div>
-  </section>
+  </div>
 
-  <!-- ARCHITECTURE SPEC-SHEET GRID -->
-  <main class="grid-section">
-    {#if filteredArchitectures.length === 0}
-      <div class="empty-state">
-        <p>No architectures match your filter criteria.</p>
-        <button class="reset-link" on:click={() => { searchQuery = ''; selectedTopology = 'All'; selectedAttention = 'All'; }}>
-          Reset filters
-        </button>
-      </div>
-    {:else}
-      <div class="cards-grid">
-        {#each filteredArchitectures as arch}
-          <article class="spec-card">
-            
-            <!-- CARD HEADER -->
-            <div class="card-header">
-              <div class="header-left">
-                <div class="title-row">
-                  <h2>{arch.name}</h2>
-                  <span class="year-tag">{arch.year}</span>
-                </div>
-                <span class="org-sub">{arch.org}</span>
+  <!-- THE DENSE DATA MATRIX -->
+  <div class="table-container">
+    <table class="engineering-table">
+      <thead>
+        <tr>
+          <th style="width: 200px;">MODEL & ORG</th>
+          <th style="width: 110px;">TOPOLOGY</th>
+          <th style="width: 150px;">ATTENTION</th>
+          <th style="width: 150px;">FEED-FORWARD</th>
+          <th style="width: 140px;">NORMALIZATION</th>
+          <th style="width: 140px;">POS ENCODING</th>
+          <th style="width: 150px;">BASE SCALE</th>
+          <th style="width: 100px; text-align: center;">STATUS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each filteredMatrix as row}
+          {@const isRowSelected = selectedModel?.id === row.id}
+          <tr 
+            class="data-row" 
+            class:row-selected={isRowSelected}
+            on:click={() => openModel(row)}
+          >
+            <!-- MODEL & ORG -->
+            <td class="model-cell">
+              <div class="model-title-wrap">
+                <strong class="model-name">{row.name}</strong>
+                <span class="year-lbl">{row.year}</span>
               </div>
-              
-              <div class="header-right">
-                <span class="topology-badge" class:moe-badge={arch.topology === 'MoE'}>
-                  {arch.topology}
-                </span>
+              <span class="org-tag">{row.org}</span>
+            </td>
+
+            <!-- TOPOLOGY -->
+            <td>
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <span 
+                class="spec-pill" 
+                class:pill-highlight={activeHighlight?.category === 'topology' && activeHighlight?.code === row.topology}
+                on:mouseenter={() => setHighlight('topology', row.topology)}
+                on:mouseleave={clearHighlight}
+              >
+                {row.topology}
+              </span>
+            </td>
+
+            <!-- ATTENTION -->
+            <td>
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <div 
+                class="cell-spec-group"
+                class:cell-highlight={activeHighlight?.category === 'attention' && activeHighlight?.code === row.attention.code}
+                on:mouseenter={() => setHighlight('attention', row.attention.code)}
+                on:mouseleave={clearHighlight}
+              >
+                <span class="code-tag">{row.attention.label}</span>
+                <span class="sub-detail">{row.attention.detail}</span>
               </div>
-            </div>
+            </td>
 
-            <!-- SUMMARY NOTE -->
-            <p class="summary-text">{arch.summary}</p>
-
-            <!-- THE 4 STRUCTURAL PILLARS -->
-            <div class="pillars-container">
-              <div class="pillars-title">STRUCTURAL SPECIFICATION</div>
-              
-              <div class="pillar-row">
-                <span class="pillar-key">ATTN</span>
-                <span class="pillar-type">{arch.pillars.attention.type}</span>
-                <span class="pillar-val">{arch.pillars.attention.detail}</span>
+            <!-- FEED-FORWARD -->
+            <td>
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <div 
+                class="cell-spec-group"
+                class:cell-highlight={activeHighlight?.category === 'ffn' && activeHighlight?.code === row.ffn.code}
+                on:mouseenter={() => setHighlight('ffn', row.ffn.code)}
+                on:mouseleave={clearHighlight}
+              >
+                <span class="code-tag">{row.ffn.label}</span>
+                <span class="sub-detail">{row.ffn.detail}</span>
               </div>
+            </td>
 
-              <div class="pillar-row">
-                <span class="pillar-key">FFN</span>
-                <span class="pillar-type">{arch.pillars.ffn.type}</span>
-                <span class="pillar-val">{arch.pillars.ffn.detail}</span>
+            <!-- NORMALIZATION -->
+            <td>
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <div 
+                class="cell-spec-group"
+                class:cell-highlight={activeHighlight?.category === 'norm' && activeHighlight?.code === row.norm.code}
+                on:mouseenter={() => setHighlight('norm', row.norm.code)}
+                on:mouseleave={clearHighlight}
+              >
+                <span class="code-tag">{row.norm.label}</span>
+                <span class="sub-detail">{row.norm.detail}</span>
               </div>
+            </td>
 
-              <div class="pillar-row">
-                <span class="pillar-key">NORM</span>
-                <span class="pillar-type">{arch.pillars.norm.type}</span>
-                <span class="pillar-val">{arch.pillars.norm.detail}</span>
+            <!-- POSITIONAL ENCODING -->
+            <td>
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <div 
+                class="cell-spec-group"
+                class:cell-highlight={activeHighlight?.category === 'position' && activeHighlight?.code === row.position.code}
+                on:mouseenter={() => setHighlight('position', row.position.code)}
+                on:mouseleave={clearHighlight}
+              >
+                <span class="code-tag">{row.position.label}</span>
+                <span class="sub-detail">θ = {row.position.theta} • {row.position.context}</span>
               </div>
+            </td>
 
-              <div class="pillar-row">
-                <span class="pillar-key">POS</span>
-                <span class="pillar-type">{arch.pillars.position.type}</span>
-                <span class="pillar-val">{arch.pillars.position.detail}</span>
-              </div>
-            </div>
+            <!-- REFERENCE SCALE -->
+            <td class="scale-cell">
+              <span class="cfg-lbl">{row.referenceScale.config}</span>
+              <span class="cfg-shape">{row.referenceScale.layers}L • d={row.referenceScale.dim}</span>
+            </td>
 
-            <!-- REFERENCE TENSOR FOOTPRINT -->
-            <div class="shape-strip">
-              <span class="shape-label">{arch.referenceShape.label}:</span>
-              <span class="shape-stat">{arch.referenceShape.layers}L</span>
-              <span class="dot">•</span>
-              <span class="shape-stat">d={arch.referenceShape.dim}</span>
-              <span class="dot">•</span>
-              <span class="shape-stat">{arch.referenceShape.heads}H</span>
-              <span class="dot">•</span>
-              <span class="shape-stat">{arch.referenceShape.vocab} vocab</span>
-            </div>
-
-            <!-- ACTION FOOTER -->
-            <div class="card-footer">
-              {#if arch.status === 'interactive' && arch.route}
-                <a href="{base}{arch.route}" class="action-btn interactive-btn">
-                  <span>Explore Interactive Engine</span>
-                  <span class="arrow">&rarr;</span>
-                </a>
+            <!-- STATUS / LAUNCH -->
+            <td class="action-cell">
+              {#if row.hasInteractive}
+                <span class="status-badge interactive">● Interactive</span>
               {:else}
-                <div class="action-btn spec-only-btn">
-                  <span>Architecture Spec Sheet</span>
-                  <span class="status-tag">Coming Soon</span>
-                </div>
+                <span class="status-badge spec">○ Spec</span>
               {/if}
-            </div>
-
-          </article>
+            </td>
+          </tr>
         {/each}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SLIDE-IN TECHNICAL DRAWER (WHEN A ROW IS CLICKED) -->
+  {#if selectedModel}
+    <div class="drawer-backdrop" on:click={closeDrawer}></div>
+    <aside class="tech-drawer">
+      <div class="drawer-header">
+        <div>
+          <span class="drawer-pre">{selectedModel.org} • {selectedModel.year}</span>
+          <h2>{selectedModel.name}</h2>
+        </div>
+        <button class="close-btn" on:click={closeDrawer}>×</button>
       </div>
-    {/if}
-  </main>
+
+      <div class="drawer-body">
+        <div class="drawer-section">
+          <h3>Architectural Role</h3>
+          <p class="role-desc">{selectedModel.notes}</p>
+        </div>
+
+        <div class="drawer-section">
+          <h3>Canonical Tensor Footprint ({selectedModel.referenceScale.config})</h3>
+          <div class="stats-matrix">
+            <div class="stat-box"><span class="k">LAYERS</span><strong class="v">{selectedModel.referenceScale.layers}</strong></div>
+            <div class="stat-box"><span class="k">HIDDEN DIM</span><strong class="v">{selectedModel.referenceScale.dim}</strong></div>
+            <div class="stat-box"><span class="k">Q HEADS</span><strong class="v">{selectedModel.referenceScale.heads}</strong></div>
+            <div class="stat-box"><span class="k">VOCAB SIZE</span><strong class="v">{selectedModel.referenceScale.vocab}</strong></div>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <h3>Primitive Breakdown</h3>
+          <div class="primitive-dossier">
+            <div class="prim-row">
+              <span class="prim-k">Attention</span>
+              <strong class="prim-type">{selectedModel.attention.label}</strong>
+              <span class="prim-d">{selectedModel.attention.detail}</span>
+            </div>
+            <div class="prim-row">
+              <span class="prim-k">Feed-Forward</span>
+              <strong class="prim-type">{selectedModel.ffn.label}</strong>
+              <span class="prim-d">{selectedModel.ffn.detail}</span>
+            </div>
+            <div class="prim-row">
+              <span class="prim-k">Normalization</span>
+              <strong class="prim-type">{selectedModel.norm.label}</strong>
+              <span class="prim-d">{selectedModel.norm.detail}</span>
+            </div>
+            <div class="prim-row">
+              <span class="prim-k">Position Encoding</span>
+              <strong class="prim-type">{selectedModel.position.label}</strong>
+              <span class="prim-d">Base Theta = {selectedModel.position.theta} | Context: {selectedModel.position.context}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-footer">
+        {#if selectedModel.hasInteractive && selectedModel.route}
+          <a href="{base}{selectedModel.route}" class="drawer-action-btn launch-btn">
+            <span>⚡ Launch Full Interactive Engine</span>
+            <span>&rarr;</span>
+          </a>
+        {:else}
+          <div class="drawer-action-btn disabled-btn">
+            <span>Interactive Walkthrough in Development</span>
+            <span class="spec-tag">Spec Complete</span>
+          </div>
+        {/if}
+      </div>
+    </aside>
+  {/if}
 
 </div>
 
 <style>
-  .page-container {
+  .matrix-page {
     padding: 3rem 2rem 6rem 2rem;
-    max-width: 1400px;
+    max-width: 1440px;
     margin: 0 auto;
     min-height: 100vh;
   }
@@ -313,46 +445,64 @@
     font-size: 0.75rem;
     color: var(--muted);
     letter-spacing: 0.1em;
-    margin-bottom: 1rem;
-    text-transform: uppercase;
+    margin-bottom: 0.75rem;
   }
-  .page-header h1 {
-    font-size: 2.5rem;
+  .header-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+  .header-main h1 {
+    font-size: 2.4rem;
     font-weight: 700;
     color: var(--text);
     margin: 0 0 0.5rem 0;
     letter-spacing: -0.02em;
   }
-  .page-header p {
+  .header-main p {
     color: var(--muted);
-    font-size: 1.05rem;
-    max-width: 700px;
+    font-size: 0.95rem;
+    max-width: 750px;
     line-height: 1.6;
     margin: 0;
   }
+  .legend-box {
+    display: flex;
+    gap: 1.25rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); }
+  .dot-interactive { color: var(--accent); }
+  .dot-spec { color: var(--muted); }
 
-  /* TOOLBAR & FILTERS */
-  .toolbar-section {
+  /* TOOLBAR */
+  .matrix-toolbar {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 2.5rem;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1rem;
   }
-
-  .search-box {
+  .search-field {
     display: flex;
     align-items: center;
+    gap: 0.75rem;
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.6rem 1rem;
-    gap: 0.75rem;
+    border-radius: 6px;
+    padding: 0.5rem 0.85rem;
   }
-  .search-prompt {
+  .cli-prompt {
     font-family: 'JetBrains Mono', monospace;
     color: var(--accent);
     font-weight: 700;
@@ -361,258 +511,203 @@
     flex: 1;
     background: transparent;
     border: none;
+    outline: none;
     color: var(--text);
     font-family: 'Space Grotesk', sans-serif;
-    font-size: 0.95rem;
-    outline: none;
+    font-size: 0.9rem;
   }
-  .search-input::placeholder { color: var(--muted); opacity: 0.7; }
-  .clear-btn {
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    font-size: 1.2rem;
-    cursor: pointer;
-  }
+  .search-input::placeholder { color: var(--muted); opacity: 0.6; }
+  .clear-btn { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; }
 
-  .filters-row {
+  .filter-controls {
     display: flex;
     align-items: center;
     gap: 2rem;
     flex-wrap: wrap;
   }
-  .filter-group {
+  .filter-pill-group {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.4rem;
   }
-  .filter-lbl {
+  .group-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--muted);
-    text-transform: uppercase;
+    margin-right: 0.25rem;
   }
-  .pills-track {
-    display: flex;
-    gap: 4px;
+  .pill {
     background: var(--bg);
     border: 1px solid var(--border);
-    padding: 3px;
-    border-radius: 6px;
-  }
-  .filter-pill {
-    background: transparent;
-    border: none;
-    padding: 0.3rem 0.75rem;
+    color: var(--muted);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--muted);
+    padding: 0.25rem 0.6rem;
     border-radius: 4px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
-  .filter-pill:hover { color: var(--text); }
-  .filter-pill.active {
+  .pill:hover { border-color: var(--text); color: var(--text); }
+  .pill.active {
     background: var(--surface2);
+    border-color: var(--accent);
     color: var(--accent);
     font-weight: 700;
   }
-  .results-count {
+  .cross-indicator {
     margin-left: auto;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-  .results-count strong { color: var(--text); }
-
-  /* CARDS GRID */
-  .cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-    gap: 2rem;
-  }
-  @media (max-width: 500px) {
-    .cards-grid { grid-template-columns: 1fr; }
+    font-size: 0.75rem;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid var(--accent);
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    color: var(--accent);
   }
 
-  .spec-card {
+  /* TABLE */
+  .table-container {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .spec-card:hover {
-    border-color: var(--accent);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  }
-
-  /* CARD HEADER */
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-  .title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .title-row h2 {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--text);
-    margin: 0;
-  }
-  .year-tag {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--muted);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    padding: 1px 6px;
-    border-radius: 4px;
-  }
-  .org-sub {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
-
-  .topology-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--accent);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-  }
-  .topology-badge.moe-badge {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--highlight);
-    border-color: rgba(245, 158, 11, 0.2);
-  }
-
-  .summary-text {
-    font-size: 0.88rem;
-    color: var(--text);
-    opacity: 0.85;
-    line-height: 1.5;
-    margin: 0;
-  }
-
-  /* 4 PILLARS */
-  .pillars-container {
-    background: var(--surface2);
-    border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.85rem 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    overflow-x: auto;
   }
-  .pillars-title {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--muted);
-    letter-spacing: 0.08em;
-    margin-bottom: 0.25rem;
-  }
-  .pillar-row {
-    display: grid;
-    grid-template-columns: 48px 105px 1fr;
-    gap: 0.75rem;
-    align-items: center;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-  }
-  .pillar-key { color: var(--muted); font-weight: 600; }
-  .pillar-type { color: var(--text); font-weight: 700; }
-  .pillar-val { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  /* SHAPE STRIP */
-  .shape-strip {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--muted);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    padding: 0.5rem 0.85rem;
-    border-radius: 6px;
-    flex-wrap: wrap;
-  }
-  .shape-label { color: var(--text); font-weight: 700; }
-  .dot { color: var(--border); }
-
-  /* FOOTER */
-  .card-footer { margin-top: auto; }
-  .action-btn {
+  .engineering-table {
     width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.85rem 1.25rem;
-    border-radius: 8px;
-    font-family: 'Space Grotesk', sans-serif;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    text-align: left;
+  }
+  .engineering-table th {
+    background: var(--surface2);
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
     font-weight: 700;
-    font-size: 0.9rem;
-    text-decoration: none;
+  }
+  .data-row {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .data-row:hover {
+    background: rgba(99, 102, 241, 0.04);
+  }
+  .data-row.row-selected {
+    background: rgba(99, 102, 241, 0.08);
+  }
+  .data-row td {
+    padding: 1rem;
+    vertical-align: middle;
+  }
+
+  /* CELL TYPES */
+  .model-cell { display: flex; flex-direction: column; gap: 0.2rem; }
+  .model-title-wrap { display: flex; align-items: center; gap: 0.5rem; }
+  .model-name { font-family: 'Space Grotesk', sans-serif; font-size: 1rem; color: var(--text); font-weight: 700; }
+  .year-lbl { font-size: 0.65rem; color: var(--muted); background: var(--bg); border: 1px solid var(--border); padding: 1px 4px; border-radius: 3px; }
+  .org-tag { font-family: 'Space Grotesk', sans-serif; font-size: 0.75rem; color: var(--muted); }
+
+  .spec-pill {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text);
     transition: all 0.2s;
   }
-  .interactive-btn {
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    cursor: pointer;
-  }
-  .interactive-btn:hover {
-    background: var(--accent);
-    color: white;
-  }
-  .interactive-btn .arrow {
-    transition: transform 0.2s;
-  }
-  .interactive-btn:hover .arrow {
-    transform: translateX(4px);
-  }
-  .spec-only-btn {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    cursor: default;
-  }
-  .status-tag {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--surface);
-    border: 1px solid var(--border);
+  .pill-highlight {
+    border-color: var(--highlight) !important;
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: var(--highlight) !important;
   }
 
-  /* EMPTY STATE */
-  .empty-state {
-    text-align: center;
-    padding: 4rem 2rem;
-    background: var(--surface);
-    border: 1px dashed var(--border);
-    border-radius: 12px;
+  .cell-spec-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s;
   }
-  .empty-state p { color: var(--muted); margin: 0 0 1rem 0; font-size: 1rem; }
-  .reset-link {
-    background: none;
-    border: none;
-    color: var(--accent);
-    font-family: 'Space Grotesk', sans-serif;
+  .cell-highlight {
+    background: rgba(99, 102, 241, 0.12);
+    border-radius: 4px;
+  }
+  .cell-highlight .code-tag {
+    color: var(--accent) !important;
     font-weight: 700;
-    cursor: pointer;
   }
+  .code-tag { color: var(--text); font-weight: 600; font-size: 0.8rem; }
+  .sub-detail { font-size: 0.7rem; color: var(--muted); line-height: 1.3; }
+
+  .scale-cell { display: flex; flex-direction: column; gap: 0.2rem; }
+  .cfg-lbl { font-weight: 700; color: var(--text); font-size: 0.75rem; }
+  .cfg-shape { font-size: 0.7rem; color: var(--muted); }
+
+  .action-cell { text-align: center; }
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .status-badge.interactive { background: rgba(99, 102, 241, 0.1); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.2); }
+  .status-badge.spec { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+
+  /* TECH DRAWER */
+  .drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;
+    backdrop-filter: blur(2px);
+  }
+  .tech-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 500px; max-width: 90vw;
+    background: var(--surface); border-left: 1px solid var(--border);
+    z-index: 101; display: flex; flex-direction: column;
+    box-shadow: -10px 0 40px rgba(0,0,0,0.3);
+    animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+  .drawer-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 2rem; border-bottom: 1px solid var(--border); background: var(--surface2);
+  }
+  .drawer-pre { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); }
+  .drawer-header h2 { font-size: 1.8rem; font-weight: 700; margin: 0.25rem 0 0 0; color: var(--text); }
+  .close-btn { background: none; border: none; font-size: 1.8rem; color: var(--muted); cursor: pointer; line-height: 1; }
+  .close-btn:hover { color: var(--text); }
+
+  .drawer-body { flex: 1; overflow-y: auto; padding: 2rem; display: flex; flex-direction: column; gap: 2rem; }
+  .drawer-section h3 { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); letter-spacing: 0.08em; margin: 0 0 0.75rem 0; }
+  .role-desc { font-size: 0.95rem; line-height: 1.6; color: var(--text); margin: 0; opacity: 0.9; }
+
+  .stats-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .stat-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+  .stat-box .k { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+  .stat-box .v { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; color: var(--text); }
+
+  .primitive-dossier { display: flex; flex-direction: column; gap: 0.75rem; }
+  .prim-row { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.2rem; }
+  .prim-k { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+  .prim-type { font-family: 'Space Grotesk', sans-serif; font-size: 1rem; color: var(--accent); }
+  .prim-d { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text); opacity: 0.85; }
+
+  .drawer-footer { padding: 1.5rem 2rem; border-top: 1px solid var(--border); background: var(--surface2); }
+  .drawer-action-btn {
+    width: 100%; display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 1.5rem; border-radius: 8px; font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 0.95rem; text-decoration: none;
+  }
+  .launch-btn { background: var(--accent); color: white; border: none; cursor: pointer; transition: opacity 0.2s; }
+  .launch-btn:hover { opacity: 0.9; }
+  .disabled-btn { background: var(--bg); border: 1px solid var(--border); color: var(--muted); cursor: default; }
+  .spec-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); }
 </style>
