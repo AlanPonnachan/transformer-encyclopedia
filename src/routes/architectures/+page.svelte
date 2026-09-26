@@ -180,7 +180,11 @@
 
   <!-- HEADER -->
   <header class="page-header">
-    <div class="breadcrumb">FOUNDATION ARCHITECTURES › MATRIX</div>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="{base}/" class="crumb-link">Transformer Encyclopedia</a>
+      <span class="crumb-sep">›</span>
+      <span class="crumb-current">Architectures</span>
+    </nav>
     <div class="header-main">
       <div>
         <h1>The Architecture Matrix</h1>
@@ -441,11 +445,33 @@
   /* HEADER */
   .page-header { margin-bottom: 2.5rem; }
   .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.85rem;
+    text-transform: uppercase;
+  }
+  .crumb-link {
     color: var(--muted);
-    letter-spacing: 0.1em;
-    margin-bottom: 0.75rem;
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .crumb-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .crumb-sep {
+    color: var(--muted);
+    opacity: 0.5;
+    user-select: none;
+  }
+  .crumb-current {
+    color: var(--text);
+    font-weight: 600;
   }
   .header-main {
     display: flex;
