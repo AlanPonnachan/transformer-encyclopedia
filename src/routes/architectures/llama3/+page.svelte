@@ -5,6 +5,7 @@
   import { inspectedCell } from '$lib/stores/diagram';
   import { onMount } from 'svelte';
   import SamplingExplorer from '$lib/components/architectures/SamplingExplorer.svelte';
+  import { base } from '$app/paths';
 
   const configs = {
     '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: '128k' },
@@ -188,7 +189,13 @@
 <div class="page-container">
   
   <header class="page-header">
-    <div class="breadcrumb">ARCHITECTURES › LLAMA 3</div>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="{base}/" class="crumb-link">Transformer Encyclopedia</a>
+      <span class="crumb-sep">›</span>
+      <a href="{base}/architectures" class="crumb-link">Architectures</a>
+      <span class="crumb-sep">›</span>
+      <span class="crumb-current">Llama 3</span>
+    </nav>
     <div class="header-split">
       <div>
         <h1>Llama 3 Architecture</h1>
@@ -920,7 +927,35 @@
   
   .page-header { margin-bottom: 2rem; }
   .header-split { display: flex; justify-content: space-between; align-items: flex-end; }
-  .breadcrumb { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 1rem; text-transform: uppercase; }
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+  }
+  .crumb-link {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .crumb-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .crumb-sep {
+    color: var(--muted);
+    opacity: 0.5;
+    user-select: none;
+  }
+  .crumb-current {
+    color: var(--text);
+    font-weight: 600;
+  }
   .page-header h1 { font-size: 2.5rem; color: var(--text); font-weight: 700; margin: 0 0 0.5rem 0; }
   .page-header p { color: var(--muted); max-width: 600px; line-height: 1.6; margin: 0; }
   
