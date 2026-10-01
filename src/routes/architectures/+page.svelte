@@ -54,7 +54,7 @@
       referenceScale: { config: '8B Base', layers: 32, dim: 4096, heads: 32, vocab: '128k' },
       hasInteractive: true,
       route: '/architectures/llama3',
-      notes: 'The industry-standard open-weights recipe. Unifies 4:1 GQA across all scales and scales context to 128k with theta=500k.'
+      notes: 'A standard dense autoregressive Transformer. Rather than adopting a mixture-of-experts model, Meta prioritized training stability at scale. Architectural changes over Llama 2 are deliberately targeted: 8 KV-head Grouped-Query Attention across all scales, an expanded 128K vocabulary, and raising the RoPE base frequency to 500,000 to natively support up to 128K context windows.'
     },
     {
       id: 'deepseek-v3',
@@ -178,7 +178,7 @@
 
 <div class="matrix-page">
 
-  <!-- HEADER -->
+  <!-- PAGE HEADER -->
   <header class="page-header">
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href="{base}/" class="crumb-link">Transformer Encyclopedia</a>
@@ -187,15 +187,15 @@
     </nav>
     <div class="header-main">
       <div>
-        <h1>The Architecture Matrix</h1>
+        <h1>Model Architectures</h1>
         <p>
-          A cross-cutting specification of modern foundation model topologies. Hover over any mechanism pill to cross-reference every model implementing that primitive. Click a row to open its full technical dossier.
+          A catalog of modern foundation models. Compare attention mechanisms, normalization, and feed-forward designs across model families.
         </p>
       </div>
 
       <div class="legend-box">
         <span class="legend-item"><span class="dot-interactive">●</span> Interactive Walkthrough</span>
-        <span class="legend-item"><span class="dot-spec">○</span> Technical Spec Dossier</span>
+        <span class="legend-item"><span class="dot-spec">○</span> Technical Spec</span>
       </div>
     </div>
   </header>
@@ -375,12 +375,12 @@
 
       <div class="drawer-body">
         <div class="drawer-section">
-          <h3>Architectural Role</h3>
+          <h3>Architecture Overview</h3>
           <p class="role-desc">{selectedModel.notes}</p>
         </div>
 
         <div class="drawer-section">
-          <h3>Canonical Tensor Footprint ({selectedModel.referenceScale.config})</h3>
+          <h3>Key Hyperparameters ({selectedModel.referenceScale.config})</h3>
           <div class="stats-matrix">
             <div class="stat-box"><span class="k">LAYERS</span><strong class="v">{selectedModel.referenceScale.layers}</strong></div>
             <div class="stat-box"><span class="k">HIDDEN DIM</span><strong class="v">{selectedModel.referenceScale.dim}</strong></div>
