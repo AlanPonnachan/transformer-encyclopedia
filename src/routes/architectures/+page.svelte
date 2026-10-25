@@ -57,19 +57,20 @@
       notes: 'A standard dense autoregressive Transformer. Rather than adopting a mixture-of-experts model, Meta prioritized training stability at scale. Architectural changes over Llama 2 are deliberately targeted: 8 KV-head Grouped-Query Attention across all scales, an expanded 128K vocabulary, and raising the RoPE base frequency to 500,000 to natively support up to 128K context windows.'
     },
     {
-      id: 'deepseek-v3',
-      name: 'DeepSeek-V3',
-      org: 'DeepSeek',
-      year: 2024,
-      topology: 'Sparse MoE',
-      attention: { code: 'MLA', label: 'MLA (Latent)', detail: 'Low-rank KV projection into 576-d latent space' },
-      ffn: { code: 'DeepSeekMoE', label: 'DeepSeekMoE', detail: '256 routed + 1 shared exp (8 active per token)' },
-      norm: { code: 'RMSNorm', label: 'Pre-RMSNorm', detail: 'eps = 1e-6' },
-      position: { code: 'Decoupled RoPE', label: 'Decoupled RoPE', theta: '10,000', context: '128k' },
-      referenceScale: { config: '671B Total (37B Active)', layers: 61, dim: 7168, heads: 128, vocab: '129k' },
-      hasInteractive: false,
-      notes: 'Radically compresses KV cache memory overhead by ~93% via Multi-Head Latent Attention. Uses fine-grained expert segmentation.'
-    },
+    id: 'deepseek-v3',
+    name: 'DeepSeek-V3',
+    org: 'DeepSeek',
+    year: 2024,
+    topology: 'Sparse MoE',
+    attention: { code: 'MLA', label: 'MLA (Latent)', detail: 'Low-rank KV projection into 576-d latent space' },
+    ffn: { code: 'DeepSeekMoE', label: 'DeepSeekMoE', detail: '256 routed + 1 shared exp (8 active per token)' },
+    norm: { code: 'RMSNorm', label: 'Pre-RMSNorm', detail: 'eps = 1e-6' },
+    position: { code: 'Decoupled RoPE', label: 'Decoupled RoPE', theta: '10,000', context: '128k' },
+    referenceScale: { config: '671B Total (37B Active)', layers: 61, dim: 7168, heads: 128, vocab: '129k' },
+    hasInteractive: true,
+    route: '/architectures/deepseek-v3',
+    notes: 'Radically compresses KV cache memory overhead by ~93% via Multi-Head Latent Attention. Uses fine-grained expert segmentation.'
+  },
     {
       id: 'mixtral-8x7b',
       name: 'Mixtral 8x7B',
