@@ -12,10 +12,17 @@
   on:mouseenter={() => isExpanded = true}
   on:mouseleave={() => isExpanded = false}
 >
-  <!-- The Visible Handle -->
-  <div class="toc-handle" class:hidden={isExpanded}>
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-  </div>
+  <!-- The Visible Handle (Sticks out at x = 0) -->
+  <button 
+    class="toc-handle" 
+    class:hidden={isExpanded}
+    on:click={() => isExpanded = !isExpanded}
+    aria-label="Toggle Table of Contents"
+  >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
   
   <div class="toc-content">
     <div class="toc-header">
@@ -47,33 +54,57 @@
 
 <style>
   .rail-toc {
-    position: fixed; top: 52px; left: 0; height: calc(100vh - 52px);
-    width: 0px; background: transparent; z-index: 150;
-    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s;
-  }
-  .rail-toc:hover, .rail-toc.expanded {
+    position: fixed; 
+    top: 52px; 
+    left: 0; 
+    height: calc(100vh - 52px);
     width: 280px; 
-    background: var(--glass-bg); /* Fixed Light Theme Bug */
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    background: var(--glass-bg, var(--surface)); 
+    backdrop-filter: blur(16px); 
+    -webkit-backdrop-filter: blur(16px);
     border-right: 1px solid var(--border);
-    box-shadow: 10px 0 40px rgba(0,0,0,0.1);
+    box-shadow: 10px 0 40px rgba(0,0,0,0.15);
+    z-index: 150;
+
+    /* Off-canvas translation: Completely removed from the card hover area */
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   
-  /* The visible handle that users click/hover */
+  /* Slide in only when the handle or the drawer is hovered/expanded */
+  .rail-toc.expanded,
+  .rail-toc:hover {
+    transform: translateX(0);
+  }
+  
+  /* The visible handle that peeks out from the left edge */
   .toc-handle {
-    position: absolute; top: 2rem; left: 0; 
-    background: var(--surface2); border: 1px solid var(--border); border-left: none;
-    padding: 0.5rem 0.5rem 0.5rem 0.25rem; border-radius: 0 6px 6px 0;
-    color: var(--muted); cursor: pointer; transition: opacity 0.2s, color 0.2s;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
+    position: absolute; 
+    top: 2rem; 
+    left: 100%; /* Sits exactly on the right outer border of the 280px panel */
+    background: var(--surface2); 
+    border: 1px solid var(--border); 
+    border-left: none;
+    padding: 0.5rem 0.55rem 0.5rem 0.35rem; 
+    border-radius: 0 6px 6px 0;
+    color: var(--muted); 
+    cursor: pointer; 
+    transition: opacity 0.2s, color 0.2s, background 0.2s;
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    box-shadow: 3px 2px 10px rgba(0,0,0,0.06);
   }
   .toc-handle:hover { color: var(--text); background: var(--border); }
   .toc-handle.hidden { opacity: 0; pointer-events: none; }
 
   /* Content */
-  .toc-content { width: 280px; padding: 2rem 1.5rem; opacity: 0; transition: opacity 0.2s; overflow-y: auto; height: 100%; }
-  .rail-toc.expanded .toc-content { opacity: 1; transition-delay: 0.1s; }
+  .toc-content { 
+    width: 100%; 
+    height: 100%; 
+    padding: 2rem 1.5rem; 
+    overflow-y: auto; 
+  }
   
   .toc-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 2rem; color: var(--text); }
   .toc-header .icon { color: var(--accent); font-size: 1.2rem; }

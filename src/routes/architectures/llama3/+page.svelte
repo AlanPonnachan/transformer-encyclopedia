@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import SamplingExplorer from '$lib/components/architectures/SamplingExplorer.svelte';
   import { base } from '$app/paths';
+  import CollapsibleToC from '$lib/components/common/CollapsibleToC.svelte';
 
   const configs = {
     '8B':  { dim: 4096, n_layers: 32, n_heads: 32, n_kv_heads: 8, vocab_size: '128k', ffn_hidden: '14,336', ctx: '128k' },
@@ -171,8 +172,71 @@
     [0.1, 0.2, 0.3, 0.3, 0.1]
   ];
 
+  // --- TABLE OF CONTENTS SPECIFICATION ---
+  const tocChapters = [
+    {
+      id: 'overview',
+      title: 'System Overview',
+      sections: [
+        { id: 'llama3-macro', title: 'Architecture Overview' }
+      ]
+    },
+    {
+      id: 'mechanisms',
+      title: 'Core Mechanisms',
+      sections: [
+        { id: 'embed-card', title: '01. Token Embedding' },
+        { id: 'rmsnorm-card', title: '02. RMSNorm Stabilizer' },
+        { id: 'gqa-card', title: '03. Grouped-Query Attention' },
+        { id: 'rope-card', title: '04. Rotary Position (RoPE)' },
+        { id: 'swiglu-card', title: '05. SwiGLU Feed-Forward' },
+        { id: 'causal-card', title: '06. Causal Masking' }
+      ]
+    },
+    {
+      id: 'decoding',
+      title: 'Output & Decoding',
+      sections: [
+        { id: 'sampling-card', title: '07. Sampling Dynamics' }
+      ]
+    }
+  ];
 
-  onMount(() => inspectedCell.set(null));
+  let activeSectionId = 'llama3-macro';
+
+  onMount(() => {
+    inspectedCell.set(null);
+
+    // Track active section on scroll
+    const sectionIds = [
+      'llama3-macro',
+      'embed-card',
+      'rmsnorm-card',
+      'gqa-card',
+      'rope-card',
+      'swiglu-card',
+      'causal-card',
+      'sampling-card'
+    ];
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            activeSectionId = entry.target.id;
+          }
+        });
+      },
+      { rootMargin: '-15% 0px -70% 0px' }
+    );
+
+    sectionIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  });
 
   $: inEmbed = hoveredNode === 'embed';
   $: inNorm1 = hoveredNode === 'norm1';
@@ -185,6 +249,8 @@
 </script>
 
 <svelte:head><title>Llama 3 Architecture — Transformer Encyclopedia</title></svelte:head>
+
+<CollapsibleToC chapters={tocChapters} {activeSectionId} />
 
 <div class="page-container">
   
