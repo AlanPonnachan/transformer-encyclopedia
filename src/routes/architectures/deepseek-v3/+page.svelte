@@ -171,9 +171,9 @@
           <!-- 61x BRACKET (LEFT) -->
           <path d="M 125 580 C 80 580, 80 370, 50 370 C 80 370, 80 160, 125 160" fill="none" stroke="var(--border)" stroke-width="2" />
           <text x="40" y="360" text-anchor="end" dominant-baseline="middle" class="bold-text" fill="var(--text)" font-size="24">{c.n_layers} ×</text>
-          <text x="40" y="385" text-anchor="end" dominant-baseline="middle" class="sub-bracket-text" fill="var(--accent)" font-size="11">Blocks</text>
-          <text x="40" y="405" text-anchor="end" dominant-baseline="middle" class="sub-bracket-text" fill="var(--muted)" font-size="9.5">L1–{c.n_dense}: Dense SwiGLU</text>
-          <text x="40" y="420" text-anchor="end" dominant-baseline="middle" class="sub-bracket-text" fill="var(--muted)" font-size="9.5">L{c.n_dense + 1}–{c.n_layers}: MoE Layer</text>
+          <text x="40" y="385" text-anchor="end" dominant-baseline="middle" class="sub-bracket-text" fill="var(--accent)" font-size="12">Blocks</text>
+          <text x="40" y="405" text-anchor="end" dominant-baseline="middle" class="sub-bracket-text" fill="var(--muted)" font-size="10.5">L1–{c.n_dense}: Dense SwiGLU</text>
+          <text x="40" y="420" text-anchor="end" dominant-baseline="middle" class="sub-bracket-text" fill="var(--muted)" font-size="10.5">L{c.n_dense + 1}–{c.n_layers}: MoE Layer</text>
 
           <!-- REPEATED TRANSFORMER BLOCK CONTAINER -->
           <rect x="140" y="160" width="420" height="420" rx="16" fill="var(--surface2)" stroke="var(--border)" stroke-width="1.5" />
